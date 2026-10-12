@@ -1,0 +1,19 @@
+{
+  "name": "td-quotation-tests",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "test": "node run-tests.mjs && node ui-tests.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "exceljs": "4.4.0"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  },
+  "private": true,
+  "type": "module"
+}

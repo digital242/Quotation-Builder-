@@ -1,0 +1,1511 @@
+<!doctype html>
+<html lang="en-IN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light only">
+<meta name="theme-color" content="#2C4474">
+<title>THERMODRAIN Quotation Builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=Carlito:wght@400;700&display=swap">
+<script defer src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<style>
+:root{
+  color-scheme:light;
+  --blue:#2C4474;--blue-h:#3C5A96;--tint:#EAF0F9;--bg:#F4F7FC;--card:#FFFFFF;--border:#D3DCEA;
+  --text:#1B2A4A;--muted:#5B6A86;--yellow:#FECB00;--red:#E73C26;--red-tint:#FDECE9;--green:#1F7A55;
+  --r-card:14px;--r-ctl:10px;
+  --f-ui:'Barlow',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;
+  --f-cond:'Barlow Condensed','Arial Narrow',var(--f-ui);
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:400 15px/1.45 var(--f-ui);overflow-x:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+button:disabled{cursor:not-allowed}
+:focus{outline:none}
+:focus-visible{outline:3px solid var(--yellow);outline-offset:2px;box-shadow:0 0 0 2px var(--blue)}
+h1,h2,h3{font-family:var(--f-cond);font-weight:700;margin:0;line-height:1.15}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.num{font-family:var(--f-cond);font-variant-numeric:tabular-nums}
+
+/* Header */
+.top{background:var(--blue);color:#fff;border-bottom:4px solid var(--yellow)}
+.top-in{max-width:1440px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.plate{background:#fff;border-radius:12px;padding:6px 10px;display:flex;align-items:center;justify-content:center;min-height:52px;flex:none}
+.plate img{height:40px;width:auto;display:block}
+.plate .wordmark{font:700 20px/1 var(--f-cond);color:var(--blue);letter-spacing:.02em}
+.plate .wordmark sup{font-size:.55em}
+.titles{flex:1 1 200px;min-width:0}
+.titles h1{font-size:26px;color:#fff}
+.titles p{margin:2px 0 0;font-size:13px;color:#DCE4F2}
+.ourref{text-align:right;min-width:0;flex:0 1 auto}
+.ourref span{display:block;font-size:12px;color:#DCE4F2}
+.ourref strong{font:600 16px/1.2 var(--f-cond);color:#fff;word-break:break-all}
+
+/* Layout */
+.layout{max-width:1440px;margin:0 auto;padding:20px;display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:20px;align-items:start}
+.col-main{display:grid;gap:20px;min-width:0}
+.col-side{min-width:0}
+.card{background:var(--card);border:1px solid var(--border);border-top:3px solid var(--blue);border-radius:var(--r-card);padding:20px;min-width:0}
+.card-h{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.card-h h2{font-size:22px}
+.card-h .aside{margin-left:auto;color:var(--muted);font-size:14px}
+.stepnum{flex:none;width:34px;height:34px;border-radius:50%;background:#fff;border:3px solid var(--yellow);box-shadow:0 0 0 1.5px var(--red);display:grid;place-items:center;font:700 17px/1 var(--f-cond);color:var(--blue)}
+.summary{position:sticky;top:16px;transition:box-shadow .25s ease}
+.summary.flash{box-shadow:0 0 0 3px var(--blue)}
+
+/* Type-to-add */
+.qa-label{display:block;font-weight:600;margin-bottom:6px}
+.qa-hint{color:var(--muted);font-size:13px;margin:0 0 8px}
+.qa-row{display:flex;gap:10px;align-items:stretch}
+.qa-row textarea{flex:1;min-width:0;min-height:84px;resize:vertical;border:1px solid var(--border);border-radius:var(--r-ctl);padding:10px 12px;background:#fff;line-height:1.4}
+.qa-row textarea::placeholder{color:#8794AD}
+.parse-list{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:6px}
+.parse-list li{display:flex;gap:8px;align-items:flex-start;font-size:14px;padding:6px 10px;border-radius:8px;background:#F8FAFD;border:1px solid #E4EAF4}
+.parse-list li.err{background:var(--red-tint);border-color:#F6C9C1}
+.parse-list .dot{flex:none;width:9px;height:9px;border-radius:50%;margin-top:6px;background:var(--green)}
+.parse-list li.err .dot{background:var(--red)}
+.parse-list .orig{display:block;color:var(--muted);font-size:13px;word-break:break-word}
+.parse-list .msg{display:block}
+.parse-list li>span:last-child{min-width:0;word-break:break-word}
+.divider{display:flex;align-items:center;gap:12px;margin:22px 0 16px;color:var(--muted);font-size:14px}
+.divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--border)}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:var(--r-ctl);padding:10px 16px;font-weight:600;border:1px solid var(--blue);min-height:44px;text-align:center;transition:background .15s ease,border-color .15s ease}
+.btn-primary{background:var(--blue);color:#fff}
+.btn-primary:hover:not(:disabled){background:var(--blue-h);border-color:var(--blue-h)}
+.btn-primary:disabled{background:#9AA8C2;border-color:#9AA8C2}
+.btn-secondary{background:#fff;color:var(--blue)}
+.btn-secondary:hover:not(:disabled){background:var(--tint)}
+.btn-link{background:none;border:0;color:var(--blue);text-decoration:underline;text-underline-offset:2px;padding:6px 2px;font-weight:500}
+.btn-link:hover{color:var(--blue-h)}
+.btn-block{width:100%}
+
+/* Picker */
+.field-label{font-weight:600;font-size:14px;margin:16px 0 8px;display:block}
+.field-label:first-child{margin-top:0}
+.prod-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.prod{display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px;min-width:0}
+.prod svg{width:34px;height:34px;color:var(--blue)}
+.prod b{font-weight:600;font-size:15px;line-height:1.2}
+.prod small{color:var(--muted);font-size:12.5px;line-height:1.3}
+.prod:hover{border-color:var(--blue-h)}
+.prod[aria-pressed="true"]{border:2px solid var(--blue);background:var(--tint);padding:11px}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--border);border-radius:var(--r-ctl);overflow:hidden;background:#fff;max-width:100%}
+.seg button{border:0;background:#fff;padding:9px 14px;min-height:42px;font-weight:500;border-right:1px solid var(--border)}
+.seg button:last-child{border-right:0}
+.seg button .cnt{color:var(--muted);font-weight:400;margin-left:4px}
+.seg button[aria-pressed="true"]{background:var(--blue);color:#fff}
+.seg button[aria-pressed="true"] .cnt{color:#DCE4F2}
+.hint{color:var(--muted);font-size:13px;margin:0 0 8px}
+.size-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px}
+.size{background:#fff;border:1px solid var(--border);border-radius:var(--r-ctl);padding:8px 6px;min-height:54px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-width:0}
+.size b{font:600 18px/1.1 var(--f-cond);white-space:nowrap}
+.size small{font-size:11.5px;color:var(--muted);line-height:1.2;text-align:center}
+.size:hover{border-color:var(--blue-h)}
+.size[aria-pressed="true"]{background:var(--blue);border-color:var(--blue);color:#fff}
+.size[aria-pressed="true"] small{color:#DCE4F2}
+.load-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+.load{background:#fff;border:1px solid var(--border);border-radius:var(--r-ctl);padding:8px 4px;min-height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-width:0}
+.load b{font:700 17px/1.1 var(--f-cond)}
+.load small{font-size:11.5px;color:var(--muted);line-height:1.2}
+.load:hover:not(:disabled){border-color:var(--blue-h)}
+.load[aria-pressed="true"]{background:var(--blue);border-color:var(--blue);color:#fff}
+.load[aria-pressed="true"] small{color:#DCE4F2}
+.load:disabled{border-style:dashed;background:#FAFBFD;color:#9AA8C2}
+.load:disabled small{color:#9AA8C2}
+.load-grid.single{grid-template-columns:minmax(0,160px)}
+
+.addbar{margin-top:18px;background:var(--tint);border-radius:12px;padding:14px;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:center}
+.addbar .draw{width:96px;height:96px;flex:none}
+.addbar .what b{display:block;font-weight:600}
+.addbar .what span{display:block;color:var(--muted);font-size:13.5px}
+.addbar .price{font:700 30px/1 var(--f-cond);color:var(--blue);margin-top:6px}
+.addbar .price small{display:block;font:400 12.5px/1.3 var(--f-ui);color:var(--muted);margin-top:3px}
+.addbar .price.na{font-size:20px}
+.flag{margin-top:6px;color:var(--red);background:var(--red-tint);border-radius:6px;padding:4px 8px;font-size:12.5px;line-height:1.3}
+.addbar .act{display:flex;flex-direction:column;gap:8px;align-items:stretch;min-width:0}
+.stepper{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:var(--r-ctl);background:#fff;overflow:hidden}
+.stepper button{border:0;background:#fff;width:40px;height:40px;font-size:20px;line-height:1;color:var(--blue)}
+.stepper button:hover{background:var(--tint)}
+.stepper input{width:52px;height:40px;border:0;border-left:1px solid var(--border);border-right:1px solid var(--border);text-align:center;font:600 17px/1 var(--f-cond);-moz-appearance:textfield;appearance:textfield}
+.stepper input::-webkit-outer-spin-button,.stepper input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.stepper.sm button{width:30px;height:30px;font-size:17px}
+.stepper.sm input{width:40px;height:30px;font-size:15px}
+
+/* Customer form */
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px}
+.fld{display:flex;flex-direction:column;gap:5px;min-width:0}
+.fld label{font-size:13.5px;font-weight:600}
+.fld label .req{color:var(--red)}
+.fld input,.fld select{border:1px solid var(--border);border-radius:var(--r-ctl);padding:9px 11px;background:#fff;min-height:42px;width:100%;min-width:0}
+.fld input::placeholder{color:#8794AD}
+.fld.full{grid-column:1/-1}
+details.more{margin-top:16px;border:1px solid var(--border);border-radius:12px;background:#fff}
+details.more>summary{cursor:pointer;padding:12px 14px;font-weight:600;color:var(--blue);list-style-position:inside}
+details.more[open]>summary{border-bottom:1px solid var(--border)}
+details.more .form-grid{padding:14px}
+
+/* Summary */
+.items{max-height:46vh;overflow:auto;margin:0 -6px;padding:0 6px}
+.item{border-bottom:1px solid var(--border);padding:12px 0;display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:4px 10px}
+.item:first-child{padding-top:2px}
+.item .ic{width:34px;height:34px;color:var(--blue)}
+.item .nm{font-weight:600;line-height:1.25}
+.item .sp{color:var(--muted);font-size:13px;line-height:1.3}
+.item .rm{border:1px solid var(--border);background:#fff;border-radius:8px;width:32px;height:32px;font-size:18px;line-height:1;color:var(--muted)}
+.item .rm:hover{color:var(--red);border-color:var(--red)}
+.item .line{grid-column:2/4;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.item .line .x{color:var(--muted);font-size:13.5px}
+.item .line .amt{margin-left:auto;font:600 17px/1 var(--f-cond)}
+.item details{grid-column:2/4;font-size:13px}
+.item details summary{cursor:pointer;color:var(--blue);padding:2px 0}
+.item details input{width:100%;margin-top:6px;border:1px solid var(--border);border-radius:8px;padding:7px 9px;font-size:13.5px}
+.item .flag{grid-column:2/4;margin-top:0}
+.empty{text-align:center;color:var(--muted);padding:18px 8px 22px;font-size:14px}
+.empty svg{width:44px;height:44px;color:var(--blue);opacity:.75;display:block;margin:0 auto 8px}
+.empty code{font-family:inherit;background:var(--tint);color:var(--text);border-radius:4px;padding:1px 5px}
+.adjust{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:14px 0 8px}
+.adjust .fld{flex-direction:row;align-items:center;gap:8px}
+.adjust .fld input{width:78px;min-height:38px;padding:6px 8px}
+.switch{display:inline-flex;align-items:center;gap:10px;border:0;background:none;padding:4px 0;font-weight:600;font-size:14px}
+.switch .track{width:42px;height:24px;border-radius:12px;background:#B8C3D8;position:relative;transition:background .15s ease;flex:none}
+.switch .track::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .15s ease}
+.switch[aria-checked="true"] .track{background:var(--blue)}
+.switch[aria-checked="true"] .track::after{transform:translateX(18px)}
+.totals{display:grid;gap:4px;font-size:14px;margin:6px 0 10px}
+.totals div{display:flex;justify-content:space-between;gap:10px}
+.totals div span:last-child{font:600 16px/1.3 var(--f-cond);font-variant-numeric:tabular-nums}
+.grand{background:var(--blue);color:#fff;border-radius:12px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.grand span:first-child{font-size:14px;color:#DCE4F2}
+.grand strong{font:700 30px/1 var(--f-cond);font-variant-numeric:tabular-nums}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.links{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:6px}
+.ready{font-size:13.5px;margin:8px 0 2px;color:var(--muted)}
+.ready.ok{color:var(--green);font-weight:600}
+.note{font-size:12.5px;color:var(--muted);margin:2px 0 0}
+
+/* Mobile bar */
+.mbar{display:none}
+@media (max-width:1039px){
+  .layout{grid-template-columns:minmax(0,1fr)}
+  .summary{position:static}
+  .items{max-height:none}
+  body{padding-bottom:86px}
+  .mbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--blue);color:#fff;border-top:4px solid var(--yellow);padding:10px 16px calc(10px + env(safe-area-inset-bottom));align-items:center;gap:12px}
+  .mbar .m-info{min-width:0;flex:1}
+  .mbar .m-info span{display:block;font-size:12.5px;color:#DCE4F2}
+  .mbar .m-info strong{font:700 22px/1.1 var(--f-cond)}
+  .mbar .btn{background:#fff;color:var(--blue);border-color:#fff;flex:none}
+  .mbar .btn:hover{background:var(--tint)}
+}
+@media (max-width:700px){
+  .layout{padding:12px;gap:12px}
+  .col-main{gap:12px}
+  .card{padding:16px}
+  .top-in{padding:10px 16px;gap:10px}
+  .titles h1{font-size:22px}
+  .ourref{text-align:left;flex-basis:100%}
+  .prod-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .load-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .form-grid{grid-template-columns:minmax(0,1fr)}
+  .addbar{grid-template-columns:auto minmax(0,1fr)}
+  .addbar .act{grid-column:1/-1}
+  .addbar .stepper{align-self:flex-start}
+  .qa-row{flex-direction:column}
+  .size-grid{grid-template-columns:repeat(auto-fill,minmax(92px,1fr))}
+  .size b{font-size:16px}
+  .seg{display:flex}
+  .seg button{flex:1 1 auto}
+}
+
+/* Toasts */
+.toasts{position:fixed;left:50%;transform:translateX(-50%);bottom:20px;z-index:50;display:grid;gap:8px;width:min(440px,calc(100vw - 32px));pointer-events:none}
+@media (max-width:1039px){.toasts{bottom:96px}}
+.toast{background:var(--blue);color:#fff;border-radius:10px;padding:11px 14px;font-size:14px;border-left:4px solid var(--yellow);pointer-events:auto;animation:tin .2s ease}
+.toast.err{border-left-color:var(--red)}
+@keyframes tin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* Preview dialog */
+dialog.pv{border:0;border-radius:14px;padding:0;width:min(860px,calc(100vw - 24px));max-height:calc(100vh - 24px);background:var(--bg);color:var(--text)}
+dialog.pv::backdrop{background:rgba(27,42,74,.55)}
+.pv-head{display:flex;align-items:center;gap:10px;padding:12px 16px;background:#fff;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:1;flex-wrap:wrap}
+.pv-head h2{font-size:20px;margin-right:auto}
+.pv-body{padding:16px;overflow:auto}
+.paper-wrap{margin:0 auto;overflow:hidden}
+.paper{width:760px;background:#fff;color:#000;padding:28px 30px;font:11pt/1.3 'Carlito','Calibri',Arial,sans-serif;transform-origin:top left;border:1px solid var(--border)}
+.paper table{width:100%;border-collapse:collapse;table-layout:fixed}
+.paper td{padding:2px 4px;vertical-align:middle;word-wrap:break-word}
+.paper .lh{display:flex;justify-content:space-between;align-items:center;min-height:62px}
+.paper .lh img{height:56px;width:auto}
+.paper .lh .ph{font:700 18px/1 'Carlito',sans-serif;color:#2C4474}
+.paper .c{text-align:center}.paper .r{text-align:right}.paper .b{font-weight:700}
+.paper .blue{color:#0070C0}.paper .u{text-decoration:underline}
+.paper .rule{border-bottom:2px solid #1F3A68;margin:4px 0 8px}
+.paper .t td{border:1px solid #000}
+.paper .t .hdr td{font-weight:700;text-align:center}
+.paper .yellow td{background:#FFF2CC}
+.paper .gap{height:10px}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-in">
+    <div class="plate" id="logoPlate"><span class="wordmark">THERMODRAIN<sup>®</sup></span></div>
+    <div class="titles">
+      <h1>Quotation builder</h1>
+      <p>Price list w.e.f. 10 Aug 2026, ex-works Panvel</p>
+    </div>
+    <div class="ourref" aria-live="polite"><span>Our ref</span><strong id="hdrRef">—</strong></div>
+  </div>
+</header>
+
+<main class="layout">
+  <div class="col-main">
+    <!-- Step 1 -->
+    <section class="card" id="step1" aria-labelledby="s1h">
+      <div class="card-h"><span class="stepnum" aria-hidden="true">1</span><h2 id="s1h">Add products</h2></div>
+
+      <label class="qa-label" for="quick">Type what the customer asked for</label>
+      <p class="qa-hint" id="quickHint">One item per line. Press Enter to add, Shift+Enter for a new line.</p>
+      <div class="qa-row">
+        <textarea id="quick" rows="3" aria-describedby="quickHint" autocomplete="off" spellcheck="false" placeholder="solid top 600x600 B125 qty 4&#10;water gully 395x990 5 ton qty 2"></textarea>
+        <button type="button" class="btn btn-primary" id="quickAdd">Add</button>
+      </div>
+      <ul class="parse-list" id="parseList" aria-live="polite"></ul>
+
+      <div class="divider" role="separator">or pick</div>
+
+      <span class="field-label" id="lblProd">Product</span>
+      <div class="prod-grid" id="prodGrid" role="group" aria-labelledby="lblProd"></div>
+
+      <span class="field-label" id="lblShape">Shape</span>
+      <div class="seg" id="shapeSeg" role="group" aria-labelledby="lblShape"></div>
+
+      <span class="field-label" id="lblSize">Size</span>
+      <p class="hint" id="sizeHint"></p>
+      <div class="size-grid" id="sizeGrid" role="group" aria-labelledby="lblSize"></div>
+
+      <div id="frameWrap" hidden>
+        <span class="field-label" id="lblFrame">Frame</span>
+        <div class="seg" id="frameSeg" role="group" aria-labelledby="lblFrame">
+          <button type="button" data-frame="without" aria-pressed="true">Without frame (in-built beam)</button>
+          <button type="button" data-frame="with" aria-pressed="false">With frame</button>
+        </div>
+      </div>
+
+      <span class="field-label" id="lblLoad">Load class</span>
+      <div class="load-grid" id="loadGrid" role="group" aria-labelledby="lblLoad"></div>
+
+      <div class="addbar" id="addBar">
+        <svg class="draw" id="coverDraw" viewBox="0 0 96 96" aria-hidden="true"></svg>
+        <div class="what">
+          <b id="abName"></b>
+          <span id="abSpec"></span>
+          <div class="price" id="abPrice"></div>
+          <div class="flag" id="abFlag" role="note" hidden></div>
+        </div>
+        <div class="act">
+          <div class="stepper" role="group" aria-label="Quantity">
+            <button type="button" id="abMinus" aria-label="Decrease quantity">−</button>
+            <input id="abQty" type="number" inputmode="numeric" min="1" max="9999" value="1" aria-label="Quantity">
+            <button type="button" id="abPlus" aria-label="Increase quantity">+</button>
+          </div>
+          <button type="button" class="btn btn-primary" id="abAdd">Add to quote</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Step 2 -->
+    <section class="card" id="step2" aria-labelledby="s2h">
+      <div class="card-h"><span class="stepnum" aria-hidden="true">2</span><h2 id="s2h">Customer details</h2></div>
+      <div class="form-grid">
+        <div class="fld full"><label for="f_company">Company name <span class="req" aria-hidden="true">*</span></label><input id="f_company" data-f="company" autocomplete="organization" required aria-required="true"></div>
+        <div class="fld"><label for="f_city">City</label><input id="f_city" data-f="city" autocomplete="address-level2"></div>
+        <div class="fld"><label for="f_cityCode">City code in ref (e.g. BGLR)</label><input id="f_cityCode" data-f="cityCode" maxlength="8" autocapitalize="characters"></div>
+        <div class="fld"><label for="f_contact">Contact person</label><input id="f_contact" data-f="contact" autocomplete="name"></div>
+        <div class="fld"><label for="f_mobile">Mobile</label><input id="f_mobile" data-f="mobile" type="tel" inputmode="tel" autocomplete="tel"></div>
+        <div class="fld"><label for="f_email">Email</label><input id="f_email" data-f="email" type="email" inputmode="email" autocomplete="email"></div>
+        <div class="fld"><label for="f_site">Project or site</label><input id="f_site" data-f="site"></div>
+        <div class="fld"><label for="f_enqBy">Enquiry came by</label>
+          <select id="f_enqBy" data-f="enqBy"><option>Email</option><option>Phone call</option><option>WhatsApp</option><option>Meeting</option><option>Enquiry</option></select></div>
+        <div class="fld"><label for="f_enqDate">Enquiry date</label><input id="f_enqDate" data-f="enqDate" type="date"></div>
+      </div>
+      <details class="more" id="moreBox">
+        <summary>Reference, subject, terms and signatory</summary>
+        <div class="form-grid">
+          <div class="fld"><label for="f_series">Series code</label><input id="f_series" data-f="series"></div>
+          <div class="fld"><label for="f_serial">Serial no.</label><input id="f_serial" data-f="serial" type="number" min="1" inputmode="numeric"></div>
+          <div class="fld"><label for="f_qdate">Quotation date</label><input id="f_qdate" data-f="qdate" type="date"></div>
+          <div class="fld"><label for="f_hsn">HSN code</label><input id="f_hsn" data-f="hsn"></div>
+          <div class="fld full"><label for="f_subject">Subject override (leave blank for automatic)</label><input id="f_subject" data-f="subject"></div>
+          <div class="fld"><label for="f_transport">Transportation</label><input id="f_transport" data-f="transport"></div>
+          <div class="fld"><label for="f_payments">Payments</label><input id="f_payments" data-f="payments"></div>
+          <div class="fld"><label for="f_unloading">Unloading</label><input id="f_unloading" data-f="unloading"></div>
+          <div class="fld"><label for="f_delivery">Delivery (optional)</label><input id="f_delivery" data-f="delivery"></div>
+          <div class="fld"><label for="f_validity">Validity (optional)</label><input id="f_validity" data-f="validity"></div>
+          <div class="fld"><label for="f_signedBy">Signed by</label><input id="f_signedBy" data-f="signedBy"></div>
+          <div class="fld"><label for="f_designation">Designation</label><input id="f_designation" data-f="designation"></div>
+          <div class="fld"><label for="f_signMobile">Signatory mobile</label><input id="f_signMobile" data-f="signMobile" type="tel"></div>
+        </div>
+      </details>
+    </section>
+  </div>
+
+  <!-- Step 3 -->
+  <aside class="col-side">
+    <section class="card summary" id="step3" aria-labelledby="s3h">
+      <div class="card-h"><span class="stepnum" aria-hidden="true">3</span><h2 id="s3h">Quotation</h2><span class="aside" id="sumCount">0 items</span></div>
+      <div class="items" id="sumItems"></div>
+      <div class="adjust">
+        <div class="fld"><label for="discount">Discount %</label><input id="discount" type="number" min="0" max="100" step="0.5" inputmode="decimal" value="0"></div>
+        <button type="button" class="switch" id="gstSwitch" role="switch" aria-checked="true"><span class="track" aria-hidden="true"></span>Add GST 18%</button>
+      </div>
+      <div class="totals" id="totals"></div>
+      <div class="grand"><span id="grandLabel">Grand total, incl. GST</span><strong id="grandVal">₹0.00</strong></div>
+      <button type="button" class="btn btn-primary btn-block" id="btnDownload">Download Excel quotation</button>
+      <div class="row2">
+        <button type="button" class="btn btn-secondary" id="btnPreview">Preview</button>
+        <button type="button" class="btn btn-secondary" id="btnCopy">Copy for WhatsApp</button>
+      </div>
+      <div class="links">
+        <button type="button" class="btn-link" id="btnClear">Clear items</button>
+        <button type="button" class="btn-link" id="btnNew">Start a new quotation</button>
+      </div>
+      <p class="ready" id="ready" aria-live="polite"></p>
+      <p class="note">After each download the serial number moves up by one.</p>
+    </section>
+  </aside>
+</main>
+
+<div class="mbar" id="mbar">
+  <div class="m-info"><span id="mCount">0 items</span><strong id="mTotal">₹0.00</strong></div>
+  <button type="button" class="btn" id="mReview">Review quote</button>
+</div>
+
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+<dialog class="pv" id="pvDlg" aria-labelledby="pvTitle">
+  <div class="pv-head">
+    <h2 id="pvTitle">Quotation preview</h2>
+    <button type="button" class="btn btn-primary" id="pvDownload">Download</button>
+    <button type="button" class="btn btn-secondary" id="pvClose">Close</button>
+  </div>
+  <div class="pv-body" id="pvBody"><div class="paper-wrap" id="paperWrap"><div class="paper" id="paper"></div></div></div>
+</dialog>
+
+<!-- ===================== Core (pure logic, no DOM; also loaded by tests/run-tests.mjs) ===================== -->
+<script id="td-core">
+/* ------------------------------------------------------------------
+   LOGOS: paste the base64 PNG strings here (with or without the
+   "data:image/png;base64," prefix). While empty, the app shows a text
+   wordmark and the Excel file is generated without images.
+   ------------------------------------------------------------------ */
+const LOGO_TP = ''; /* <<< PASTE Thermoset Poly Products wordmark base64 PNG here */
+const LOGO_TD = ''; /* <<< PASTE THERMODRAIN ring logo base64 PNG here */
+
+var TD = (function () {
+'use strict';
+
+/* ---- Authoritative price data (w.e.f. 10 Aug 2026). Do not edit. ---- */
+const LOADS=[
+  {k:'P',name:'Pedestrian',cap:'2.5 T'},
+  {k:'LV',name:'Light vehicle',cap:'5 T'},
+  {k:'B125',name:'4-wheeler',cap:'B125'},
+  {k:'C250',name:'Truck / tempo',cap:'C250'},
+  {k:'D400',name:'Fire engine / trailer',cap:'D400'},
+  {k:'E600',name:'Industrial / port',cap:'E600'}
+];
+// s: size id, l: label, d: [w,h] mm for drawing (w only = circle), p: prices by load index
+const DATA={
+ solid:{name:'Solid Top MHC',shapes:{
+  Circular:[
+   ['c400','400 mm (16")',[400],[4070,4280,6145,8095,9845,14775]],
+   ['c450','450 mm (17")',[450],[4145,4925,7080,9310,11280,16930]],
+   ['c500','500 mm (20")',[500],[6290,6590,9500,12520,15245,22850]],
+   ['c600','600 mm (24")',[600],[7695,8190,10735,12980,17290,25930]],
+   ['c690','690 mm (27")',[690],[11265,11430,14455,17440,21025,31525]],
+   ['c762','762 mm (30")',[762],[11730,12720,15485,21420,23855,35760]],
+   ['c900','900 mm (36")',[900],[16205,16915,22125,24150,31895,47845]],
+   ['c1000','1000 mm (40")',[1000],[20710,22800,26425,29020,43430,65155]],
+   ['c1400','1400 mm (55"), 2 covers single frame',[1400],[34405,35850,52500,58360,78070,117110]]],
+  Rectangular:[
+   ['r600x450','600 x 450 mm (24"x18")',[600,450],[4675,7845,10790,11065,16775,25160]],
+   ['r900x450','900 x 450 mm (36"x18")',[900,450],[8180,8775,12090,13705,21260,31885]],
+   ['r750x600','750 x 600 mm (29"x24")',[750,600],[9160,9830,13540,15350,23810,35710]],
+   ['r900x600','900 x 600 mm (36"x24")',[900,600],[11065,11250,15150,22575,27715,41575]],
+   ['r1000x600','1000 x 600 mm (39"x24")',[1000,600],[12720,12935,17420,25960,31875,47810]],
+   ['r950x750','950 x 750 mm (37"x29")',[950,750],[15200,16020,24195,28205,38345,57575]],
+   ['r1200x600','1200 x 600 mm (48"x24")',[1200,600],[15510,16350,24690,28780,39130,58750]],
+   ['r990x1220','990 x 1220 mm (40"x49")',[990,1220],[35470,41735,54660,61020,80470,120700]]],
+  Square:[
+   ['s300','300 x 300 mm (12"x12")',[300,300],[2335,2485,5365,6535,7215,10840]],
+   ['s450','450 x 450 mm (18"x18")',[450,450],[4155,5450,10280,11180,12915,19365]],
+   ['s600','600 x 600 mm (24"x24")',[600,600],[7755,8175,12345,14390,19565,29375]],
+   ['s675','675 x 675 mm (27"x27")',[675,675],[10770,11705,15470,17995,25335,37995]],
+   ['s750','750 x 750 mm (29"x29")',[750,750],[13650,15070,18330,21310,30705,46050]],
+   ['s800','800 x 800 mm (31"x31")',[800,800],[15015,16575,20160,23440,33775,50655]],
+   ['s900','900 x 900 mm (36"x36")',[900,900],[20725,26580,31250,34645,50750,76120]],
+   ['s900t','900 x 900 mm (36"x36"), 2 covers single frame',[900,900],[20725,null,null,null,null,null]],
+   ['s1000','1000 x 1000 mm (40"x40")',[1000,1000],[31120,34615,46105,48745,69140,103720]],
+   ['s1200','1200 x 1200 mm (48"x48")',[1200,1200],[41740,46305,62020,69675,100555,150830]],
+   ['s1500','1500 x 1500 mm (60"x60")',[1500,1500],[70625,78205,93595,120055,148520,222770]]]
+ }},
+ hinged:{name:'Hinged MHC (180°)',shapes:{
+  Circular:[['c600','600 mm (24")',[600],[9300,9810,12420,14685,19080,28620]]],
+  Square:[['s600','600 x 600 mm (24"x24")',[600,600],[10640,11075,15410,17530,22910,34365]]]
+ }},
+ tank:{name:'Water Tank Cover',single:'500 kg',shapes:{
+  Circular:[['c600','600 mm (24")',[600],[5420]],['c750','750 mm (30")',[750],[6900]]],
+  Square:[['s600','600 x 600 mm (24"x24")',[600,600],[5810]],['s750','750 x 750 mm (30"x30")',[750,750],[7525]]]
+ }},
+ aw:{name:'Air & Water Tight',shapes:{
+  Circular:[
+   ['c400','400 mm (16")',[400],[5300,5560,7975,10520,12805,19200]],
+   ['c450','450 mm (17")',[450],[5380,6395,9210,12115,14675,22010]],
+   ['c500','500 mm (20")',[500],[8180,8580,12350,16285,19825,29730]],
+   ['c600','600 mm (24")',[600],[10015,10660,13940,16875,22480,33700]],
+   ['c690','690 mm (27")',[690],[14640,14850,18805,22665,27330,40980]],
+   ['c762','762 mm (30")',[762],[15245,16540,20145,27850,30995,46495]],
+   ['c900','900 mm (36")',[900],[21060,21995,28755,31390,41455,62200]],
+   ['c1000','1000 mm (40")',[1000],[26930,29640,34355,37715,56460,84700]]],
+  Rectangular:[
+   ['r600x450','600 x 450 mm (24"x18")',[600,450],[6085,10210,14045,14370,21800,32685]],
+   ['r900x450','900 x 450 mm (36"x18")',[900,450],[10620,11405,15695,17830,27640,41440]],
+   ['r750x600','750 x 600 mm (29"x24")',[750,600],[11895,12775,17580,19970,30955,46415]],
+   ['r900x600','900 x 600 mm (36"x24")',[900,600],[14375,14620,19675,29340,36035,54055]],
+   ['r990x1220','990 x 1220 mm (40"x49")',[990,1220],[46120,54240,71080,79315,104595,156900]]],
+  Square:[
+   ['s300','300 x 300 mm (12"x12")',[300,300],[3035,3225,6970,8485,9385,14095]],
+   ['s450','450 x 450 mm (18"x18")',[450,450],[5415,7090,13370,14530,16785,25175]],
+   ['s600','600 x 600 mm (24"x24")',[600,600],[10075,10610,16040,18700,25440,38160]],
+   ['s675','675 x 675 mm (27"x27")',[675,675],[14005,15205,20090,23390,32925,49390]],
+   ['s750','750 x 750 mm (29"x29")',[750,750],[17740,19580,23825,27695,39915,59870]],
+   ['s800','800 x 800 mm (31"x31")',[800,800],[19515,21540,26210,30465,43905,65855]],
+   ['s900','900 x 900 mm (36"x36")',[900,900],[26935,34540,40625,45040,65975,98950]],
+   ['s1000','1000 x 1000 mm (40"x40")',[1000,1000],[40460,45010,59935,63360,89900,134850]],
+   ['s1200','1200 x 1200 mm (48"x48")',[1200,1200],[54280,60205,80625,90565,130735,196085]],
+   ['s1500','1500 x 1500 mm (60"x60")',[1500,1500],[91800,101660,121665,156060,193060,289600]]]
+ }},
+ recess:{name:'Recess Cover',shapes:{
+  Circular:[
+   ['c500','500 mm (20")',[500],[8745,9330,12175,16060,20675,null]],
+   ['c600','600 mm (24")',[600],[10680,11630,13675,16620,23470,null]],
+   ['c690','690 mm (27")',[690],[16130,16600,19070,22995,29290,null]],
+   ['c762','762 mm (30")',[762],[16475,18155,20040,27695,32610,null]],
+   ['c900','900 mm (36")',[900],[22740,24125,28635,31255,43615,null]],
+   ['c1000','1000 mm (40")',[1000],[29070,32520,37215,37545,59390,null]]],
+  Rectangular:[
+   ['r600x450','600 x 450 mm (24"x18")',[600,450],[11085,11475,13220,14110,22315,null]],
+   ['r900x450','900 x 450 mm (36"x18")',[900,450],[13400,13930,15785,18960,27825,null]],
+   ['r750x600','750 x 600 mm (29"x24")',[750,600],[15795,16850,18900,24455,36510,null]],
+   ['r900x600','900 x 600 mm (36"x24")',[900,600],[16625,17740,19895,29380,38235,null]],
+   ['r950x750','950 x 750 mm (37"x29")',[950,750],[23190,26240,31620,36635,53460,null]],
+   ['r990x1220','990 x 1220 mm (40"x49")',[990,1220],[52830,69955,83755,88900,114525,null]]],
+  Square:[
+   ['s300','300 x 300 mm (12"x12")',[300,300],[6090,6350,7515,8815,9375,null]],
+   ['s450','450 x 450 mm (18"x18")',[450,450],[10150,10410,12590,15500,16940,null]],
+   ['s600','600 x 600 mm (24"x24")',[600,600],[12275,12890,16925,19495,28725,null]],
+   ['s750','750 x 750 mm (29"x29")',[750,750],[20155,22405,27020,29415,44280,null]],
+   ['s800','800 x 800 mm (31"x31")',[800,800],[22170,24645,28370,32355,48710,null]],
+   ['s900','900 x 900 mm (36"x36")',[900,900],[29755,34735,43350,47870,68695,null]],
+   ['s1000','1000 x 1000 mm (40"x40")',[1000,1000],[49920,51650,67350,72290,108420,null]],
+   ['s1200','1200 x 1200 mm (48"x48")',[1200,1200],[60855,70175,90715,101865,152865,null]],
+   ['s1500','1500 x 1500 mm (60"x60")',[1500,1500],[107695,119255,133645,157795,236690,null]]]
+ }},
+ gully:{name:'Water Gully Cover',gully:true,shapes:{
+  // p = with frame, q = without frame (in-built beam)
+  Circular:[['c600','600 round (cover 660 round)',[600],[8295,8770,11460,14615,19055,null],[7200,7405,10010,13220,15665,null]]],
+  Rectangular:[
+   ['r640x240','640 x 240 (cover 700 x 300)',[640,240],[5030,5445,5945,7445,9820,null],[2935,3510,4280,6210,8710,null]],
+   ['r385x317','385 x 317 (cover 445 x 377)',[385,317],[4990,5470,8815,9230,10445,null],[3145,4145,7800,8225,9750,null]],
+   ['r335x930','335 x 930 (cover 395 x 990)',[335,930],[7000,7300,8360,12885,15695,null],[3920,4200,5280,11905,13200,null]],
+   ['r500x600','500 x 600 (cover 560 x 660)',[500,600],[8805,9490,13145,14895,19825,null],[5580,6245,11470,13935,18835,null]],
+   ['r600x450','600 x 450 (cover 660 x 514)',[600,450],[6920,8320,11490,13575,16410,null],[5785,7095,10195,12040,14215,null]],
+   ['r900x450','900 x 450 (cover 965 x 515)',[900,450],[8180,10495,12990,16560,21735,null],[7680,9450,11690,12950,21270,null]],
+   ['r900x600','900 x 600 (cover 960 x 660)',[900,600],[9500,13350,18480,22465,27855,null],[7710,11415,17250,21585,25930,null]]],
+  Square:[
+   ['s300','300 x 300 (cover 342 for 2.5/5 T, 360 for B125–D400)',[300,300],[3325,3640,5125,6345,7390,null],[2610,2860,4130,5725,6865,null]],
+   ['s450','450 x 450 (cover 515 x 515)',[450,450],[5425,5735,9130,9620,13650,null],[3135,4430,7395,8795,12765,null]],
+   ['s600','600 x 600 (cover 660 x 660)',[600,600],[9015,9705,13450,15240,20280,null],[5710,6385,11725,14255,19270,null]],
+   ['s750','750 x 750 (cover 816 x 816)',[750,750],[12820,13480,20085,25250,37610,null],[9820,10890,17875,20970,35185,null]],
+   ['s900','900 x 900 (cover 966 x 966)',[900,900],[16260,20770,28780,36220,41855,null],[11995,17780,26625,34810,42045,null]]]
+ }}
+};
+const FLAGS={
+ 'gully|s900|4|without':'Without-frame price is higher than with-frame here. Check before quoting.',
+ 'solid|r600x450|1':'Jump from pedestrian to light vehicle is ~68%, far above neighbouring sizes. Check before quoting.',
+ 'aw|r600x450|1':'Jump from pedestrian to light vehicle is ~68%, far above neighbouring sizes. Check before quoting.',
+ 'aw|s900|1':'Large jump from pedestrian to light vehicle for this size. Check before quoting.',
+ 'solid|s900|1':'Large jump from pedestrian to light vehicle for this size. Check before quoting.',
+ 'recess|c1000|3':'C250 is almost the same as B125 for this size. Check before quoting.',
+ 'solid|r900x600|3':'B125 to C250 jumps ~49%, steeper than neighbouring sizes. Check before quoting.'
+};
+
+/* ---- Display / print vocabulary ---- */
+const PRODUCTS=['solid','hinged','tank','aw','recess','gully'];
+const SHAPES=['Square','Rectangular','Circular'];
+const LOAD_CODE=['2.5 T','5 T','B125','C250','D400','E600'];
+const LOAD_PRINT=['2.5 T','5 T','B 125','C 250','D 400','E 600'];
+const PRINT_NAME={solid:'SOLID TOP MANHOLE COVER',hinged:'HINGED MANHOLE COVER',tank:'WATER TANK COVER',aw:'AIR & WATER TIGHT COVER',recess:'RECESS COVER',gully:'WATER GULLY COVER'};
+const GROUP_TITLE={
+  solid:'‘THERMODRAIN’ FRP/GRP SOLID TOP MANHOLE COVER WITH FRAME',
+  hinged:'‘THERMODRAIN’ FRP/GRP HINGED MANHOLE COVER WITH FRAME (180° opening with FRP hinge)',
+  tank:'‘THERMODRAIN’ FRP/GRP WATER TANK COVER WITH FRAME (180° opening with hinge & locking arrangement)',
+  aw:'‘THERMODRAIN’ FRP/GRP AIR & WATER TIGHT COVER WITH FRAME',
+  recess:'‘THERMODRAIN’ FRP/GRP RECESS COVER WITH FRAME',
+  'gully|without':'‘THERMODRAIN’ FRP WATER GULLY COVER WITHOUT FRAME (with 2 side support & inbuilt beam design)',
+  'gully|with':'‘THERMODRAIN’ FRP WATER GULLY COVER WITH FRAME'
+};
+const NOTE_MHC='THERMODRAIN manhole covers are load tested as per BS EN 124 or IS 1726.';
+const GROUP_NOTE={
+  solid:NOTE_MHC, hinged:NOTE_MHC, tank:null,
+  aw:'THERMODRAIN air & water tight covers are load tested as per BS EN 124 or IS 1726.',
+  recess:'THERMODRAIN recess covers are load tested as per BS EN 124 or IS 1726.',
+  'gully|without':'THERMODRAIN water gully covers (Tested as per BS EN 124 or IS 1726) have a minimum opening of 36% for smooth flow of water.',
+  'gully|with':'THERMODRAIN water gully covers (Tested as per BS EN 124 or IS 1726) have a minimum opening of 36% for smooth flow of water.'
+};
+// Water gully: opening id -> cover out-to-out size. Rect = [W, L]; circle = {d}.
+const GULLY_OTO={
+  c600:{d:660}, r640x240:[300,700], r385x317:[377,445], r335x930:[395,990], r500x600:[560,660],
+  r600x450:[514,660], r900x450:[515,965], r900x600:[660,960],
+  s450:[515,515], s600:[660,660], s750:[816,816], s900:[966,966]
+};
+const ENQ_PHRASE={'Email':'your email','Phone call':'our telephonic discussion','WhatsApp':'your WhatsApp message','Meeting':'our meeting','Enquiry':'your enquiry'};
+const COMPANY={
+  address:'Office address: Raheja Arcade, Off.No.613, Sec – 11, Plot no. 61, CBD Belapur, Navi Mumbai – 400 614.',
+  tel:'Tel. no.: 022 40741414 (30 lines) ; Mob.No.7021650820',
+  email:'Email: thermodrain@frpmanholecover.com / thermodrain@gmail.com',
+  web:'webpage: www.frpmanholecover.com', webUrl:'https://www.frpmanholecover.com'
+};
+const DEFAULT_FIELDS={company:'',city:'',cityCode:'',contact:'',mobile:'',email:'',site:'',enqBy:'Email',enqDate:'',
+  series:'TP1',serial:1,qdate:'',subject:'',hsn:'39259090',transport:'Extra',payments:'100 % ADVANCE',
+  unloading:"CLIENT'S SCOPE",delivery:'',validity:'',signedBy:'PRAVIN SAKPAL',designation:'MARKETING DIRECTOR',signMobile:'+91 9619908011'};
+const CUSTOMER_KEYS=['company','city','cityCode','contact','mobile','email','site','enqBy','enqDate','subject'];
+
+/* ---- Lookups ---- */
+function findRow(prod,id){
+  const P=DATA[prod]; if(!P) return null;
+  for(const shape of SHAPES){ const rows=P.shapes[shape]||[]; for(const row of rows){ if(row[0]===id) return {shape,row}; } }
+  return null;
+}
+function isTwin(row){ return /2 covers/.test(row[1]); }
+function priceOf(prod,id,load,frame){
+  const f=findRow(prod,id); if(!f) return null;
+  if(prod==='tank') return f.row[3][0];
+  if(!(load>=0&&load<=5)) return null;
+  const arr = prod==='gully' ? (frame==='with' ? f.row[3] : f.row[4]) : f.row[3];
+  const v=arr[load]; return (v===null||v===undefined) ? null : v;
+}
+function normFrame(prod,frame){ return prod==='gully' ? (frame==='with'?'with':'without') : null; }
+function itemKey(it){ return [it.prod, normFrame(it.prod,it.frame)||'-', it.id, it.prod==='tank'?0:it.load].join('|'); }
+function groupKey(it){ return it.prod==='gully' ? 'gully|'+normFrame('gully',it.frame) : it.prod; }
+function flagFor(it){
+  if(it.prod==='tank') return null;
+  if(it.prod==='gully') return FLAGS['gully|'+it.id+'|'+it.load+'|'+normFrame('gully',it.frame)] || null;
+  return FLAGS[it.prod+'|'+it.id+'|'+it.load] || null;
+}
+function gullyOTO(id,load){
+  if(id==='s300'){ const n=(load===undefined||load===null||load<=1)?342:360; return {w:n,l:n}; }
+  const o=GULLY_OTO[id]; if(!o) return null;
+  return o.d ? {d:o.d} : {w:o[0],l:o[1]};
+}
+function inchesOf(label){
+  const m=String(label).match(/\((\d+)"(?:\s*x\s*(\d+)")?\)/);
+  return m ? [m[1], m[2]] : [];
+}
+/* Human size text for the UI, e.g. "600 × 600 mm", "Ø 900 mm", gully: out-to-out. */
+function sizeText(prod,id,load){
+  const f=findRow(prod,id); if(!f) return id;
+  if(prod==='gully'){ const o=gullyOTO(id,load); return o.d ? 'Ø '+o.d+' mm' : o.w+' × '+o.l+' mm'; }
+  const d=f.row[2]; let s = d.length===1 ? 'Ø '+d[0]+' mm' : d[0]+' × '+d[1]+' mm';
+  if(isTwin(f.row)) s+=', 2 covers, 1 frame';
+  return s;
+}
+function loadText(prod,load){ return prod==='tank' ? '500 kg' : LOAD_CODE[load]; }
+function loadPrint(prod,load){ return prod==='tank' ? '500 KG' : LOAD_PRINT[load]; }
+function productLabel(it){ return DATA[it.prod].name + (it.prod==='gully' ? (normFrame('gully',it.frame)==='with' ? ' with frame' : ' without frame') : ''); }
+/* "600 × 600 mm, B125, 4-wheeler" */
+function specText(it){
+  const parts=[];
+  if(it.prod==='gully') parts.push(sizeText(it.prod,it.id,it.load)+' out to out');
+  else parts.push(sizeText(it.prod,it.id,it.load));
+  if(it.prod==='tank') parts.push('500 kg');
+  else parts.push(LOAD_CODE[it.load], LOADS[it.load].name);
+  return parts.join(', ');
+}
+/* Default size wording printed in the Excel quotation. */
+function defaultWording(it){
+  const f=findRow(it.prod,it.id); if(!f) return '';
+  if(it.prod==='gully'){
+    const o=gullyOTO(it.id,it.load);
+    if(o.d) return o.d+'mm DIA (out to out)';
+    if(o.w===o.l) return o.w+'mm X '+o.l+'mm (out to out)';
+    return o.w+'mm W. X '+o.l+'mm L. (out to out)';
+  }
+  const d=f.row[2], inch=inchesOf(f.row[1]);
+  let s = d.length===1
+    ? d[0]+' mm dia ('+inch[0]+'") clear opening'
+    : d[0]+' mm x '+d[1]+' mm ('+inch[0]+'" x '+inch[1]+'") clear opening';
+  if(isTwin(f.row)) s+=', 2 covers with single frame';
+  return s;
+}
+function wordingOf(it){ return (it.wording && String(it.wording).trim()) ? String(it.wording).trim() : defaultWording(it); }
+
+/* ---- Number / date formatting ---- */
+function groupIN(intStr){
+  if(intStr.length<=3) return intStr;
+  const last=intStr.slice(-3), rest=intStr.slice(0,-3);
+  return rest.replace(/\B(?=(\d{2})+(?!\d))/g,',')+','+last;
+}
+function fmtIN(n,dec){
+  const neg=n<0; const s=Math.abs(n).toFixed(dec); const [i,f]=s.split('.');
+  return (neg?'-':'')+groupIN(i)+(f?'.'+f:'');
+}
+function rupees(n){ return '₹'+fmtIN(n, Number.isInteger(Math.round(n*100)/100)?0:2); }
+function rupees2(n){ return '₹'+fmtIN(n,2); }
+function round2(n){ return Math.round((n+Number.EPSILON)*100)/100; }
+function ddmmyyyy(iso){ const m=String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? m[3]+'/'+m[2]+'/'+m[1] : ''; }
+function fyOf(iso){
+  const m=String(iso||'').match(/^(\d{4})-(\d{2})/); if(!m) return '';
+  const y=+m[1], mo=+m[2], s = mo>=4 ? y : y-1;
+  return s+'-'+String((s+1)%100).padStart(2,'0');
+}
+function pad3(n){ return String(Math.max(0,parseInt(n,10)||0)).padStart(3,'0'); }
+function todayISO(d){ d=d||new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function refNo(f){
+  const series=String(f.series||'TP1').trim().toUpperCase()||'TP1';
+  const code=String(f.cityCode||'').trim().toUpperCase();
+  return 'THERMODRAIN/QTN/'+series+(code?'-'+code:'')+'/'+pad3(f.serial||1)+'/'+fyOf(f.qdate||todayISO());
+}
+
+/* ---- Parser: one free-text line -> item or plain-language error ---- */
+const PRODUCT_RES=[
+  ['gully', /gulle?y|water\s*gul|grating\s*cover/],
+  ['aw', /\bair\b|airtight|water\s*-?\s*tight|\ba\s*&\s*w\b|\ba\s*\/\s*w\b/],
+  ['recess', /recess/],
+  ['tank', /tank/],
+  ['hinged', /hinge/],
+  ['solid', /solid|mhc|manhole|top\s*cover|cover/]
+];
+const T_UNIT='(?:tons?|tonnes?|mt|t)';
+const LOAD_RES=[
+  [5, new RegExp('\\be\\s*-?\\s*600\\b|\\b60\\s*-?\\s*'+T_UNIT+'\\b|industrial|\\bport\\b')],
+  [4, new RegExp('\\bd\\s*-?\\s*400\\b|\\b40\\s*-?\\s*'+T_UNIT+'\\b|fire\\s*-?\\s*engine|trail[eo]r')],
+  [3, new RegExp('\\bc\\s*-?\\s*250\\b|\\b25\\s*-?\\s*'+T_UNIT+'\\b|truck|tempo')],
+  [2, new RegExp('\\bb\\s*-?\\s*125\\b|(?<![\\d.])12\\.5\\s*-?\\s*'+T_UNIT+'\\b|\\b4\\s*-?\\s*wheeler')],
+  [0, new RegExp('(?<![\\d.])2\\.5(?:\\s*-?\\s*'+T_UNIT+'\\b)?(?![\\d.])|pedestrian|\\bfoot\\b')],
+  [1, new RegExp('(?<![\\d.])5\\s*-?\\s*'+T_UNIT+'\\b|light\\s*-?\\s*vehicle|\\b2\\s*-?\\s*wheeler|\\blv\\b')]
+];
+function matchSize(prod,size,load){
+  const P=DATA[prod], cands=[];
+  const push=(shape,row,rank)=>cands.push({shape,row,rank:rank+(isTwin(row)?10:0)});
+  for(const shape of SHAPES){
+    for(const row of (P.shapes[shape]||[])){
+      const d=row[2];
+      if(size.a){
+        if(d.length===2 && ((d[0]===size.a&&d[1]===size.b)||(d[0]===size.b&&d[1]===size.a))) push(shape,row,0);
+        else if(prod==='gully'){
+          const opts = row[0]==='s300' ? [342,360].map(n=>({w:n,l:n})) : [gullyOTO(row[0],load)];
+          for(const o of opts) if(o && !o.d && ((o.w===size.a&&o.l===size.b)||(o.w===size.b&&o.l===size.a))){ push(shape,row,1); break; }
+        }
+      } else {
+        const n=size.n;
+        if(d.length===1 && d[0]===n) push(shape,row,0);
+        else if(d.length===2 && d[0]===n && d[1]===n) push(shape,row,2);
+        else if(prod==='gully'){
+          const opts = row[0]==='s300' ? [342,360].map(x=>({w:x,l:x})) : [gullyOTO(row[0],load)];
+          for(const o of opts){ if(!o) continue;
+            if(o.d===n){ push(shape,row,1); break; }
+            if(!o.d && o.w===n && o.l===n){ push(shape,row,3); break; } }
+        }
+      }
+    }
+  }
+  cands.sort((x,y)=>x.rank-y.rank);
+  return cands[0]||null;
+}
+function parseLine(raw){
+  const text=String(raw||'').trim();
+  const fail=(error)=>({ok:false,text,error});
+  if(!text) return fail('Empty line.');
+  let s=' '+text.toLowerCase().replace(/[×*]/g,'x').replace(/\s+/g,' ')+' ';
+  const take=(re)=>{ const m=s.match(re); if(m) s=s.slice(0,m.index)+' '+s.slice(m.index+m[0].length); return m; };
+
+  // 1. Product
+  let prod=null;
+  for(const [k,re] of PRODUCT_RES){ if(re.test(s)){ prod=k; break; } }
+  if(!prod) return fail('Name the product: solid top, recess, gully, air & water tight, hinged or tank.');
+  for(const [,re] of PRODUCT_RES){ while(take(re)); }
+
+  // 2. Frame (gully only). Default: without frame.
+  const hasWithout=/\bwithout\s*-?\s*frame|\bw\s*\/\s*o\s*frame/.test(s);
+  const hasWith=/\bwith\s*-?\s*frame/.test(s);
+  const frame = prod==='gully' ? ((hasWith && !hasWithout) ? 'with' : 'without') : null;
+  while(take(/\b(?:without|with|w\s*\/\s*o)\s*-?\s*frames?\b|in\s*-?\s*built\s*beam/));
+
+  // 3. Quantity (explicit)
+  let qty=null, m;
+  if((m=take(/\b(?:qty|qnty|qnt|quantity)\b\.?\s*[:=\-]?\s*(\d{1,5})(?!\d)/))) qty=+m[1];
+  else if((m=take(/(?<![\d.])(\d{1,5})\s*(?:nos|pcs|pieces|units)\b\.?/))) qty=+m[1];
+  else if((m=take(/\b(?:nos|no)\b\.?\s*[:=\-]?\s*(\d{1,4})(?![\dx.])(?!\s*x\s*\d)/))) qty=+m[1];
+
+  // 4. Load
+  let load=null;
+  if(prod==='tank'){ take(/\b500\s*-?\s*kgs?\b/); load=0; }
+  else { for(const [i,re] of LOAD_RES){ if(take(re)){ load=i; break; } } }
+
+  // 5. Size
+  let size=null;
+  if((m=take(/(?<![\d.])(\d{3,4})\s*(?:mm)?\s*x\s*(\d{3,4})(?![\d.])\s*(?:mm)?/))) size={a:+m[1],b:+m[2]};
+  else if((m=take(/(?:(?:dia|ø|round)\.?\s*)?(?<![\d.])(\d{3,4})(?![\d.])\s*(?:mm)?\s*(?:diameter|dia\.?|ø|round)?/))) size={n:+m[1]};
+
+  // 6. Quantity fallback
+  if(qty===null){ m=s.match(/(?<![\d.])(\d{1,4})(?![\d.])/); qty = m ? +m[1] : 1; }
+  if(!(qty>=1)) return fail('Quantity must be at least 1.');
+
+  if(!size) return fail('Add the size, for example 600x600 or 900 dia.');
+  const hit=matchSize(prod,size,load);
+  if(!hit){
+    const shown = size.a ? size.a+' × '+size.b : size.n+' mm';
+    return fail(shown+' is not in the '+DATA[prod].name+' price list.');
+  }
+  if(load===null) return fail('Add the load class: 2.5 T, 5 T, B125, C250, D400 or E600.');
+  const item={prod,id:hit.row[0],load,frame,qty};
+  const price=priceOf(prod,item.id,load,frame);
+  if(price===null) return fail(LOAD_CODE[load]+' is on request for this size, so it can\'t be priced here.');
+  return {ok:true,text,item,price,amount:price*qty};
+}
+function describeParsed(r){
+  const it=r.item;
+  return productLabel(it)+', '+sizeText(it.prod,it.id,it.load)+(it.prod==='gully'?' out to out':'')+', '+loadText(it.prod,it.load)
+    +' — '+it.qty+' nos × '+rupees(r.price)+' = '+rupees(r.amount);
+}
+
+/* ---- Totals ---- */
+function totals(items,discount,gst){
+  const sub=items.reduce((a,it)=>a+(priceOf(it.prod,it.id,it.load,it.frame)||0)*it.qty,0);
+  const d = Math.max(0,Math.min(100,+discount||0));
+  const disc = d>0 ? sub*d/100 : 0;
+  const base = sub-disc;
+  const g = gst ? base*0.18 : 0;
+  return {sub, discountPct:d, disc, base, gst:g, grand:base+g, gstOn:!!gst};
+}
+
+/* ---- Quotation model shared by Excel, preview and WhatsApp ---- */
+function joinNames(arr){ return arr.length<=1 ? (arr[0]||'') : arr.slice(0,-1).join(', ')+' & '+arr[arr.length-1]; }
+function autoSubject(items,site){
+  const names=[]; for(const it of items){ const n=PRINT_NAME[it.prod]; if(!names.includes(n)) names.push(n); }
+  if(!names.length) names.push('MANHOLE COVER');
+  return ('OFFER FOR THERMODRAIN FRP '+joinNames(names)+(String(site||'').trim()?' FOR '+String(site).trim():'')).toUpperCase();
+}
+function introText(f){
+  const how=ENQ_PHRASE[f.enqBy]||'your enquiry';
+  const dt=ddmmyyyy(f.enqDate);
+  return 'This is in reference to '+how+(dt?' dt.'+dt:'')+' regarding the above mentioned subject. Kindly find our offer (for supply only) as given below:';
+}
+function buildModel(items,f,discount,gst){
+  f=Object.assign({},DEFAULT_FIELDS,f||{});
+  const qdate=f.qdate||todayISO();
+  const groups=[], byKey={};
+  let sr=0;
+  for(const it of items){
+    const k=groupKey(it);
+    if(!byKey[k]){ byKey[k]={key:k,title:GROUP_TITLE[k],note:GROUP_NOTE[k],items:[]}; groups.push(byKey[k]); }
+  }
+  for(const g of groups){
+    for(const it of items){ if(groupKey(it)!==g.key) continue;
+      const price=priceOf(it.prod,it.id,it.load,it.frame);
+      g.items.push({sr:++sr,wording:wordingOf(it),load:loadPrint(it.prod,it.load),qty:it.qty,price,amount:price*it.qty,src:it});
+    }
+  }
+  const nG=items.filter(i=>i.prod==='gully').length;
+  const sizeHeader = nG===items.length && nG>0 ? 'OUT TO OUT SIZE' : (nG===0 ? 'FRAME OPENING SIZE' : 'SIZE');
+  const t=totals(items,discount,gst);
+  const pct=t.discountPct;
+  const totalRows=[{key:'total',label:'TOTAL',value:t.sub}];
+  if(pct>0){ totalRows.push({key:'disc',label:'Less Discount @'+pct+'%',value:t.disc}); totalRows.push({key:'after',label:'TOTAL',value:t.base,bold:true}); }
+  if(t.gstOn){ totalRows.push({key:'gst',label:'ADD : GST @ 18%',value:t.gst}); totalRows.push({key:'grand',label:'GRAND TOTAL (INCL. 18% GST)',value:t.grand}); }
+  const last=totalRows[totalRows.length-1]; last.bold=true; last.yellow=true;
+  const terms=[['GST', t.gstOn ? '18% (included in grand total above)' : '18% Extra'],
+    ['HSN CODE',f.hsn],['TRANSPORTATION',f.transport],['PAYMENTS',f.payments],['UNLOADING',f.unloading]];
+  if(String(f.delivery||'').trim()) terms.push(['DELIVERY',f.delivery]);
+  if(String(f.validity||'').trim()) terms.push(['VALIDITY',f.validity]);
+  return {
+    ref:refNo(Object.assign({},f,{qdate})), qdate, dateText:ddmmyyyy(qdate),
+    email:String(f.email||'').trim(), company:String(f.company||'').trim().toUpperCase(),
+    city:String(f.city||'').trim() ? String(f.city).trim().toUpperCase().replace(/\.*$/,'.') : '',
+    mobile:String(f.mobile||'').trim(), contact:String(f.contact||'').trim().toUpperCase(),
+    subject:(String(f.subject||'').trim()||autoSubject(items,f.site)).toUpperCase(),
+    intro:introText(f), sizeHeader, groups, totals:t, totalRows, pct,
+    terms:terms.map(([k,v])=>[k,String(v||'').trim()]),
+    signedBy:String(f.signedBy||'').trim().toUpperCase(), designation:String(f.designation||'').trim().toUpperCase(),
+    signMobile:String(f.signMobile||'').trim(),
+    filename:'QTN_'+pad3(f.serial)+'_'+(String(f.company||'').trim().replace(/[^A-Za-z0-9]+/g,'_').replace(/^_+|_+$/g,'')||'Customer')+'.xlsx'
+  };
+}
+
+/* ---- WhatsApp text ---- */
+function whatsappText(M){
+  const L=[];
+  L.push('*THERMODRAIN quotation*');
+  L.push('Ref: '+M.ref); L.push('Date: '+M.dateText);
+  L.push('To: '+[M.company,M.city.replace(/\.$/,'')].filter(Boolean).join(', '));
+  if(M.contact) L.push('Kind attn: '+M.contact);
+  L.push('Sub: '+M.subject); L.push('');
+  for(const g of M.groups){
+    L.push('*'+g.title+'*');
+    for(const r of g.items) L.push(r.sr+'. '+r.wording+', '+r.load+': '+r.qty+' nos × '+rupees(r.price)+' = '+rupees2(r.amount));
+    L.push('');
+  }
+  for(const r of M.totalRows){
+    const lbl = r.key==='grand' ? 'Grand total (incl. 18% GST)' : r.key==='gst' ? 'Add GST @18%' : r.key==='disc' ? 'Less discount @'+M.pct+'%' : r.key==='after' ? 'Total after discount' : (M.totals.gstOn?'Total':'Total, GST extra');
+    L.push(r.yellow ? '*'+lbl+': '+rupees2(r.value)+'*' : lbl+': '+rupees2(r.value));
+  }
+  L.push(''); L.push('Terms:');
+  for(const [k,v] of M.terms) L.push(k+': '+v);
+  L.push(''); L.push('Thanks & regards,'); L.push(M.signedBy); L.push(M.designation); if(M.signMobile) L.push('M.No. '+M.signMobile);
+  L.push('Thermoset Poly Products (I) Pvt. Ltd.');
+  return L.join('\n');
+}
+
+/* ---- Excel (ExcelJS) in the company QTN format ---- */
+const COLW=[10.57,1.57,18.71,29.57,11.71,10.29,12.29,14];
+const NUMFMT='[>=10000000]##\\,##\\,##\\,##0.00;[>=100000]##\\,##\\,##0.00;##,##0.00';
+function wrapLines(text,cpl){
+  let lines=0;
+  for(const para of String(text).split('\n')){
+    let n=1, cur=0;
+    for(const w of para.split(/\s+/).filter(Boolean)){
+      const L=w.length;
+      if(cur===0) cur=L;
+      else if(cur+1+L<=cpl) cur+=1+L;
+      else { n++; cur=L; }
+      while(cur>cpl){ n++; cur-=cpl; }
+    }
+    lines+=n;
+  }
+  return Math.max(1,lines);
+}
+function rowHeightFor(text,width,bold,min){
+  const cpl=Math.max(1,Math.floor(width*(bold?0.95:1.12))-2);
+  return Math.max(min||15, wrapLines(text,cpl)*15+5);
+}
+function stripB64(s){ s=String(s||'').trim(); const i=s.indexOf(','); return s.startsWith('data:') ? s.slice(i+1) : s; }
+function buildWorkbook(ExcelJS,M,logos){
+  logos=logos||{};
+  const wb=new ExcelJS.Workbook();
+  wb.creator='THERMODRAIN Quotation builder'; wb.created=new Date();
+  const ws=wb.addWorksheet('Quotation',{views:[{showGridLines:false}],properties:{defaultRowHeight:15}});
+  ws.pageSetup={paperSize:9,orientation:'portrait',fitToPage:true,fitToWidth:1,fitToHeight:1,horizontalCentered:true,
+    margins:{left:0.45,right:0.45,top:0.5,bottom:0.5,header:0.3,footer:0.3}};
+  COLW.forEach((w,i)=>{ ws.getColumn(i+1).width=w; });
+  const W=(c1,c2)=>COLW.slice(c1-1,c2).reduce((a,b)=>a+b,0);
+  const font=(o)=>Object.assign({name:'Calibri',size:11,family:2},o||{});
+  const thin={style:'thin',color:{argb:'FF000000'}};
+  const box=(r,c1,c2)=>{ for(let c=c1;c<=c2;c++) ws.getCell(r,c).border={top:thin,left:thin,bottom:thin,right:thin}; };
+  const put=(r,c1,c2,value,o)=>{
+    o=o||{};
+    if(c2>c1) ws.mergeCells(r,c1,r,c2);
+    const cell=ws.getCell(r,c1);
+    cell.value=value;
+    cell.font=font(o.font);
+    cell.alignment=Object.assign({vertical:'middle',horizontal:'left'},o.align||{});
+    if(o.numFmt) cell.numFmt=o.numFmt;
+    return cell;
+  };
+  const height=(r,h)=>{ ws.getRow(r).height=h; };
+  const BLUE={argb:'FF0070C0'};
+
+  // Letterhead (rows 1-3)
+  for(let r=1;r<=3;r++) height(r,16.5);
+  const tp=stripB64(logos.tp), td=stripB64(logos.td);
+  if(tp){ const id=wb.addImage({base64:tp,extension:'png'}); ws.addImage(id,{tl:{col:0.05,row:0.1},ext:{width:212,height:62},editAs:'oneCell'}); }
+  if(td){ const id=wb.addImage({base64:td,extension:'png'}); ws.addImage(id,{tl:{col:5.55,row:0.1},ext:{width:226,height:62},editAs:'oneCell'}); }
+  put(4,1,8,COMPANY.address,{align:{horizontal:'center',wrapText:true}}); height(4,rowHeightFor(COMPANY.address,W(1,8),false,15));
+  put(5,1,8,COMPANY.tel,{align:{horizontal:'center'}});
+  put(6,1,5,COMPANY.email,{font:{color:BLUE}});
+  put(6,6,8,{text:COMPANY.web,hyperlink:COMPANY.webUrl},{font:{color:BLUE},align:{horizontal:'right'}});
+  height(7,4);
+  for(let c=1;c<=8;c++) ws.getCell(7,c).border={bottom:{style:'medium',color:{argb:'FF1F3A68'}}};
+  height(8,8);
+  let r=9;
+  const kv=(label,value,o)=>{ put(r,1,1,label); put(r,2,2,':',{align:{horizontal:'center'}}); const c=put(r,3,8,value,o); r++; return c; };
+  if(M.email) kv('EMAIL ON',{text:M.email,hyperlink:'mailto:'+M.email},{font:{color:BLUE,underline:true}});
+  kv('OUR REF',M.ref);
+  const [yy,mm,dd]=M.qdate.split('-').map(Number);
+  kv('DATE',new Date(Date.UTC(yy,mm-1,dd)),{numFmt:'dd/mm/yyyy'});
+  r++; // blank
+  put(r,1,8,M.company||'',{font:{bold:true},align:{wrapText:true}}); height(r,rowHeightFor(M.company||'',W(1,8),true,15)); r++;
+  if(M.city){ put(r,1,8,M.city); r++; }
+  if(M.mobile){ put(r,1,8,'MOB.NO.: '+M.mobile); r++; }
+  if(M.contact){ r++; kv('KIND ATTN',M.contact); }
+  r++;
+  // Subject
+  const top={vertical:'top'};
+  put(r,1,1,'SUB',{font:{bold:true},align:top}); put(r,2,2,':',{font:{bold:true},align:{vertical:'top',horizontal:'center'}});
+  put(r,3,8,M.subject,{font:{bold:true},align:{vertical:'top',horizontal:'left',wrapText:true}});
+  height(r,rowHeightFor(M.subject,W(3,8),true,20)); r++;
+  r++;
+  put(r,1,8,'Dear Sir,'); r++;
+  put(r,1,8,M.intro,{align:{wrapText:true,vertical:'top'}}); height(r,rowHeightFor(M.intro,W(1,8),false,20)); r++;
+  r++;
+  // Table header (two merged rows)
+  const h1=r, h2=r+1;
+  const hdr=[[1,2,'SR. NO.'],[3,4,M.sizeHeader],[5,5,'LOAD BEARING'],[6,6,'QTY (NOS)'],[7,7,'PRICE /PC (RS)'],[8,8,'TOTAL PRICE (RS)']];
+  for(const [c1,c2,txt] of hdr){
+    ws.mergeCells(h1,c1,h2,c2);
+    const c=ws.getCell(h1,c1); c.value=txt; c.font=font({bold:true}); c.alignment={horizontal:'center',vertical:'middle',wrapText:true};
+  }
+  for(const rr of [h1,h2]){ box(rr,1,8); height(rr,16); }
+  r=h2+1;
+  // Groups and items
+  const first=r;
+  for(const g of M.groups){
+    put(r,1,8,g.title,{font:{bold:true},align:{horizontal:'center',wrapText:true}}); box(r,1,8);
+    height(r,rowHeightFor(g.title,W(1,8),true,20)); r++;
+    if(g.note){ put(r,1,8,g.note,{align:{horizontal:'center',wrapText:true}}); box(r,1,8); height(r,rowHeightFor(g.note,W(1,8),false,20)); r++; }
+    for(const it of g.items){
+      put(r,1,2,it.sr,{align:{horizontal:'center'}});
+      put(r,3,4,it.wording,{align:{horizontal:'center',wrapText:true}});
+      put(r,5,5,it.load,{align:{horizontal:'center'}});
+      put(r,6,6,it.qty,{align:{horizontal:'center'}});
+      put(r,7,7,it.price,{align:{horizontal:'right',indent:1},numFmt:NUMFMT});
+      put(r,8,8,{formula:'G'+r+'*F'+r,result:it.amount},{align:{horizontal:'right',indent:1},numFmt:NUMFMT});
+      box(r,1,8); height(r,rowHeightFor(it.wording,W(3,4),false,20)); r++;
+    }
+  }
+  const lastItem=r-1;
+  // Totals
+  const at={};
+  for(const t of M.totalRows){
+    let formula;
+    if(t.key==='total') formula='SUM(H'+first+':H'+lastItem+')';
+    else if(t.key==='disc') formula='H'+at.total+'*'+M.pct+'%';
+    else if(t.key==='after') formula='H'+at.total+'-H'+at.disc;
+    else if(t.key==='gst') formula='H'+(at.after||at.total)+'*18%';
+    else if(t.key==='grand') formula='H'+(at.after||at.total)+'+H'+at.gst;
+    at[t.key]=r;
+    const bold=!!t.bold;
+    ws.mergeCells(r,1,r,2); ws.mergeCells(r,3,r,4);
+    put(r,5,7,t.label,{font:{bold},align:{horizontal:'right',indent:1}});
+    put(r,8,8,{formula,result:round2(t.value)},{font:{bold},align:{horizontal:'right',indent:1},numFmt:NUMFMT});
+    box(r,1,8); height(r,20);
+    if(t.yellow) for(let c=1;c<=8;c++) ws.getCell(r,c).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFFFF2CC'}};
+    r++;
+  }
+  r++;
+  // Terms
+  put(r,1,3,'TERMS & CONDITIONS',{font:{bold:true}}); r++;
+  for(const [k,v] of M.terms){
+    const txt=': '+v;
+    put(r,4,4,k,{align:{vertical:'top'}});
+    put(r,5,8,txt,{align:{vertical:'top',wrapText:true}});
+    height(r,rowHeightFor(txt,W(5,8),false,15)); r++;
+  }
+  r++;
+  put(r,1,4,'Thanks & Regards,'); r++;
+  height(r,40);
+  if(tp){ const id=wb.addImage({base64:tp,extension:'png'}); ws.addImage(id,{tl:{col:0.05,row:r-1+0.08},ext:{width:170,height:50},editAs:'oneCell'}); }
+  r++;
+  r+=2; // spacer rows
+  put(r,1,4,M.signedBy,{font:{bold:true}}); r++;
+  put(r,1,4,M.designation); r++;
+  put(r,1,4,'M.NO. '+M.signMobile);
+  ws.pageSetup.printArea='A1:H'+r;
+  return {wb,lastRow:r,firstItemRow:first,lastItemRow:lastItem,totalRowsAt:at};
+}
+
+return {LOADS,DATA,FLAGS,PRODUCTS,SHAPES,LOAD_CODE,LOAD_PRINT,PRINT_NAME,GROUP_TITLE,GROUP_NOTE,GULLY_OTO,DEFAULT_FIELDS,CUSTOMER_KEYS,COLW,NUMFMT,
+  findRow,isTwin,priceOf,normFrame,itemKey,groupKey,flagFor,gullyOTO,inchesOf,sizeText,loadText,loadPrint,productLabel,specText,
+  defaultWording,wordingOf,fmtIN,rupees,rupees2,round2,ddmmyyyy,fyOf,pad3,todayISO,refNo,parseLine,describeParsed,matchSize,
+  totals,autoSubject,introText,buildModel,whatsappText,wrapLines,rowHeightFor,buildWorkbook,stripB64,
+  logos:{tp:LOGO_TP,td:LOGO_TD}};
+})();
+</script>
+
+<!-- ===================== UI ===================== -->
+<script>
+(function(){
+'use strict';
+const T=TD;
+const $=(s,root)=>(root||document).querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const reduceMotion=()=>{ try{ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ return false; } };
+
+/* ---------- Storage (never throws) ---------- */
+const store={
+  get(k){ try{ const v=window.localStorage.getItem(k); return v?JSON.parse(v):null; }catch(e){ return null; } },
+  set(k,v){ try{ window.localStorage.setItem(k,JSON.stringify(v)); return true; }catch(e){ return false; } }
+};
+const K_QUOTE='td_quote_v2', K_FIELDS='td_qtn_fields';
+
+/* ---------- Icons (40x40, 1.8 stroke, currentColor) ---------- */
+const svgI=(body)=>'<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+body+'</svg>';
+const ICON={
+  solid:svgI('<rect x="5" y="5" width="30" height="30" rx="2"/><rect x="10" y="10" width="20" height="20" rx="1.5"/><path d="M14 16h12M14 20h12M14 24h12"/>'),
+  hinged:svgI('<rect x="5" y="18" width="30" height="17" rx="2"/><path d="M9 18 L13 5 H31 L35 18"/><circle cx="9" cy="18" r="1.6"/><circle cx="31" cy="18" r="1.6"/>'),
+  tank:svgI('<ellipse cx="20" cy="10" rx="13" ry="5"/><path d="M7 10v19c0 2.8 5.8 5 13 5s13-2.2 13-5V10"/><path d="M14 9.5h12"/>'),
+  aw:svgI('<circle cx="20" cy="20" r="15"/><circle cx="20" cy="20" r="11" stroke-dasharray="2.5 2.5"/><circle cx="20" cy="20" r="6"/>'),
+  recess:svgI('<rect x="5" y="5" width="30" height="30" rx="2"/><rect x="9" y="9" width="22" height="22"/><path d="M16.3 9v22M23.7 9v22M9 16.3h22M9 23.7h22"/>'),
+  gully:svgI('<rect x="5" y="8" width="30" height="24" rx="2"/><path d="M11 13v14M15.5 13v14M20 13v14M24.5 13v14M29 13v14"/>'),
+  empty:svgI('<rect x="9" y="7" width="22" height="28" rx="2"/><path d="M15 7V5h10v2"/><path d="M14 16h12M14 21h12M14 26h7"/>')
+};
+const PROD_DESC={solid:'Manhole cover with frame',hinged:'Opens 180° on FRP hinge',tank:'500 kg, hinge + locking',aw:'Gasketed cover with frame',recess:'Tray top for tiles or paving',gully:'Slotted, with or without frame'};
+
+/* ---------- State ---------- */
+const today=()=>T.todayISO();
+function validItem(it){
+  return it && T.DATA[it.prod] && T.findRow(it.prod,it.id) && Number.isInteger(+it.qty) && +it.qty>=1
+    && T.priceOf(it.prod,it.id,it.prod==='tank'?0:+it.load,it.frame)!==null;
+}
+let uidN=0; const uid=()=>'i'+Date.now().toString(36)+(uidN++);
+const saved=store.get(K_QUOTE)||{};
+const Q={
+  items:(Array.isArray(saved.items)?saved.items:[]).filter(validItem).map(it=>({uid:uid(),prod:it.prod,id:it.id,load:it.prod==='tank'?0:+it.load,frame:T.normFrame(it.prod,it.frame),qty:+it.qty,wording:it.wording||null})),
+  discount:Math.max(0,Math.min(100,+saved.discount||0)),
+  gst:saved.gst!==false,
+  draft:typeof saved.draft==='string'?saved.draft:''
+};
+const P=Object.assign({prod:'solid',shape:'Square',id:'s600',frame:'without',load:2,qty:1},saved.picker||{});
+if(!T.DATA[P.prod]) P.prod='solid';
+const F=Object.assign({},T.DEFAULT_FIELDS,store.get(K_FIELDS)||{});
+if(!F.qdate) F.qdate=today();
+function saveQuote(){ store.set(K_QUOTE,{items:Q.items.map(({prod,id,load,frame,qty,wording})=>({prod,id,load,frame,qty,wording})),discount:Q.discount,gst:Q.gst,draft:$('#quick').value,picker:P}); }
+function saveFields(){ store.set(K_FIELDS,F); }
+
+/* ---------- Toasts ---------- */
+function toast(msg,isErr){
+  const box=$('#toasts'); const el=document.createElement('div');
+  el.className='toast'+(isErr?' err':''); el.textContent=msg; box.appendChild(el);
+  while(box.children.length>3) box.firstChild.remove();
+  setTimeout(()=>el.remove(), isErr?6000:3800);
+}
+
+/* ---------- Items ---------- */
+function addItem(it){
+  const key=T.itemKey(it);
+  const ex=Q.items.find(x=>T.itemKey(x)===key);
+  if(ex){ ex.qty+=it.qty; return ex; }
+  const n={uid:uid(),prod:it.prod,id:it.id,load:it.prod==='tank'?0:it.load,frame:T.normFrame(it.prod,it.frame),qty:it.qty,wording:null};
+  Q.items.push(n); return n;
+}
+function flashSummary(){
+  const s=$('#step3'); s.classList.remove('flash'); void s.offsetWidth; s.classList.add('flash');
+  setTimeout(()=>s.classList.remove('flash'),1100);
+}
+const plural=(n,one,many)=>n+' '+(n===1?one:many);
+
+/* ---------- Type-to-add ---------- */
+const quick=$('#quick');
+function parseAll(){ return quick.value.split('\n').map((l,i)=>({i,line:l})).filter(x=>x.line.trim()).map(x=>Object.assign({idx:x.i},T.parseLine(x.line))); }
+function renderParse(){
+  const res=parseAll();
+  $('#parseList').innerHTML=res.map(r=> r.ok
+    ? '<li class="ok"><span class="dot" aria-hidden="true"></span><span><span class="sr-only">Understood: </span>'+esc(T.describeParsed(r))+'</span></li>'
+    : '<li class="err"><span class="dot" aria-hidden="true"></span><span><span class="orig">'+esc(r.text)+'</span><span class="msg"><span class="sr-only">Problem: </span>'+esc(r.error)+'</span></span></li>'
+  ).join('');
+  const nOk=res.filter(r=>r.ok).length;
+  $('#quickAdd').textContent = nOk>1 ? 'Add '+nOk+' items' : 'Add';
+}
+function addFromText(){
+  const lines=quick.value.split('\n');
+  const keep=[]; let added=0, bad=0;
+  for(const line of lines){
+    if(!line.trim()) continue;
+    const r=T.parseLine(line);
+    if(r.ok){ addItem(r.item); added++; } else { keep.push(line); bad++; }
+  }
+  if(!added && !bad){ toast('Type a line first, for example: solid top 600x600 B125 qty 4.',true); quick.focus(); return; }
+  quick.value=keep.join('\n');
+  renderParse(); saveQuote();
+  if(added){ renderSummary(); flashSummary(); }
+  if(added && !bad) toast(plural(added,'item','items')+' added.');
+  else if(added && bad) toast(plural(added,'item','items')+' added. '+plural(bad,'line still needs','lines still need')+' fixing.');
+  else toast('Nothing added. '+plural(bad,'line needs','lines need')+' fixing, see the red note under the box.',true);
+}
+quick.value=Q.draft;
+quick.addEventListener('input',()=>{ renderParse(); saveQuote(); });
+quick.addEventListener('keydown',e=>{
+  if(e.key==='Enter' && !e.shiftKey && !e.isComposing){ e.preventDefault(); addFromText(); }
+});
+$('#quickAdd').addEventListener('click',addFromText);
+
+/* ---------- Visual picker ---------- */
+function rowsOf(prod,shape){ return (T.DATA[prod].shapes[shape]||[]); }
+function shapesOf(prod){ return T.SHAPES.filter(s=>rowsOf(prod,s).length); }
+function pPrice(load){ return T.priceOf(P.prod,P.id,P.prod==='tank'?0:(load===undefined?P.load:load),P.frame); }
+function closestRow(rows,target){
+  const pool=rows.filter(r=>!T.isTwin(r)); const list=pool.length?pool:rows;
+  let best=list[0], bd=Infinity;
+  for(const r of list){ const d=Math.abs(r[2][0]-target)+(r[2][1]?Math.abs(r[2][1]-target)*0.01:0); if(d<bd){bd=d;best=r;} }
+  return best;
+}
+function normalisePicker(){
+  const shapes=shapesOf(P.prod);
+  if(!shapes.includes(P.shape)) P.shape=shapes.includes('Square')?'Square':shapes[0];
+  const rows=rowsOf(P.prod,P.shape);
+  if(!rows.some(r=>r[0]===P.id)){
+    const prev=T.findRow(P.prod,P.id)||T.findRow('solid',P.id);
+    P.id=closestRow(rows, prev?prev.row[2][0]:600)[0];
+  }
+  P.frame=P.frame==='with'?'with':'without';
+  if(!(P.load>=0&&P.load<=5)) P.load=2;
+  stepDownLoad();
+  P.qty=Math.max(1,Math.min(9999,parseInt(P.qty,10)||1));
+}
+/* When the current load is unavailable, step down to the nearest priced load. Never move up. */
+function stepDownLoad(){
+  if(P.prod==='tank') return;
+  if(pPrice(P.load)!==null) return;
+  for(let i=P.load-1;i>=0;i--){ if(pPrice(i)!==null){ P.load=i; return; } }
+}
+function inchSub(row){
+  if(T.isTwin(row)) return '2 covers, 1 frame';
+  const inch=T.inchesOf(row[1]);
+  return inch[1] ? inch[0]+'″ × '+inch[1]+'″' : (inch[0]?'Ø '+inch[0]+'″':'');
+}
+function sizeMain(row){
+  if(P.prod==='gully'){ const o=T.gullyOTO(row[0],P.load); return o.d?'Ø '+o.d:o.w+' × '+o.l; }
+  const d=row[2]; return d.length===1?'Ø '+d[0]:d[0]+' × '+d[1];
+}
+function sizeSub(row){
+  if(P.prod==='gully'){ const d=row[2]; return 'opening '+(d.length===1?'Ø '+d[0]:d[0]+' × '+d[1]); }
+  return inchSub(row);
+}
+function coverSVG(){
+  const f=T.findRow(P.prod,P.id); if(!f) return '';
+  const blue='#2C4474', yellow='#FECB00', tint='#FFFFFF';
+  const sc=84/1500, minD=18;
+  let d=f.row[2];
+  if(P.prod==='gully'){ const o=T.gullyOTO(P.id,P.load); d=o.d?[o.d]:[o.w,o.l]; }
+  const circ=d.length===1;
+  let w=Math.max(minD,d[0]*sc), h=Math.max(minD,(circ?d[0]:d[1])*sc);
+  const cx=48, cy=48; let s='';
+  const showFrame = P.prod!=='gully' || P.frame==='with';
+  if(circ){
+    const r=w/2;
+    if(showFrame) s+='<circle cx="'+cx+'" cy="'+cy+'" r="'+(r+4)+'" fill="none" stroke="'+blue+'" stroke-width="1.2"/>';
+    s+='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="'+tint+'" stroke="'+blue+'" stroke-width="1.8"/>';
+    if(P.prod==='gully'){ for(let x=-r+4;x<r-2;x+=4.5){ const yy=Math.sqrt(Math.max(0,r*r-x*x))-3; if(yy>2) s+='<line x1="'+(cx+x)+'" y1="'+(cy-yy)+'" x2="'+(cx+x)+'" y2="'+(cy+yy)+'" stroke="'+blue+'" stroke-width="1.4"/>'; } }
+    else s+='<circle cx="'+cx+'" cy="'+cy+'" r="'+Math.max(3,r*0.55)+'" fill="none" stroke="'+yellow+'" stroke-width="2.2"/>';
+    if(T.isTwin(f.row)) s+='<line x1="'+cx+'" y1="'+(cy-r)+'" x2="'+cx+'" y2="'+(cy+r)+'" stroke="'+blue+'" stroke-width="1.4"/>';
+  } else {
+    const x=cx-w/2, y=cy-h/2;
+    if(showFrame) s+='<rect x="'+(x-4)+'" y="'+(y-4)+'" width="'+(w+8)+'" height="'+(h+8)+'" rx="2" fill="none" stroke="'+blue+'" stroke-width="1.2"/>';
+    s+='<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="1.5" fill="'+tint+'" stroke="'+blue+'" stroke-width="1.8"/>';
+    if(P.prod==='gully'){
+      const vertical = w>=h;
+      if(vertical){ for(let xx=x+4;xx<x+w-2;xx+=4.5) s+='<line x1="'+xx+'" y1="'+(y+3)+'" x2="'+xx+'" y2="'+(y+h-3)+'" stroke="'+blue+'" stroke-width="1.4"/>'; }
+      else { for(let yy=y+4;yy<y+h-2;yy+=4.5) s+='<line x1="'+(x+3)+'" y1="'+yy+'" x2="'+(x+w-3)+'" y2="'+yy+'" stroke="'+blue+'" stroke-width="1.4"/>'; }
+    } else if(T.isTwin(f.row)){
+      s+='<line x1="'+cx+'" y1="'+y+'" x2="'+cx+'" y2="'+(y+h)+'" stroke="'+blue+'" stroke-width="1.4"/>';
+      const rr=Math.max(2.5,Math.min(w/2,h)*0.25);
+      s+='<circle cx="'+(cx-w/4)+'" cy="'+cy+'" r="'+rr+'" fill="none" stroke="'+yellow+'" stroke-width="2"/><circle cx="'+(cx+w/4)+'" cy="'+cy+'" r="'+rr+'" fill="none" stroke="'+yellow+'" stroke-width="2"/>';
+    } else {
+      s+='<circle cx="'+cx+'" cy="'+cy+'" r="'+Math.max(3,Math.min(w,h)*0.28)+'" fill="none" stroke="'+yellow+'" stroke-width="2.2"/>';
+    }
+  }
+  return s;
+}
+function focusKey(){ const a=document.activeElement; if(!a||!a.dataset) return null; for(const k of ['prod','shape','size','frame','load']) if(a.dataset[k]!==undefined) return '[data-'+k+'="'+a.dataset[k]+'"]'; return null; }
+function renderPicker(){
+  const fk=focusKey();
+  normalisePicker();
+  const D=T.DATA[P.prod];
+  $('#prodGrid').innerHTML=T.PRODUCTS.map(k=>'<button type="button" class="prod" data-prod="'+k+'" aria-pressed="'+(k===P.prod)+'">'+ICON[k]+'<b>'+esc(T.DATA[k].name)+'</b><small>'+esc(PROD_DESC[k])+'</small></button>').join('');
+  $('#shapeSeg').innerHTML=shapesOf(P.prod).map(s=>'<button type="button" data-shape="'+s+'" aria-pressed="'+(s===P.shape)+'">'+s+'<span class="cnt">'+rowsOf(P.prod,s).length+'</span></button>').join('');
+  $('#sizeHint').textContent = P.prod==='gully' ? 'Sizes are cover out-to-out, as printed on the quotation' : 'Sizes are frame clear opening in mm';
+  $('#sizeGrid').innerHTML=rowsOf(P.prod,P.shape).map(row=>{
+    const main=sizeMain(row), sub=sizeSub(row);
+    return '<button type="button" class="size" data-size="'+row[0]+'" aria-pressed="'+(row[0]===P.id)+'" aria-label="'+esc(main.replace('Ø','diameter')+' mm, '+sub)+'"><b>'+esc(main)+'</b><small>'+esc(sub)+'</small></button>';
+  }).join('');
+  $('#frameWrap').hidden = P.prod!=='gully';
+  $('#frameSeg').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.frame===P.frame)));
+  const lg=$('#loadGrid');
+  if(P.prod==='tank'){
+    lg.classList.add('single');
+    lg.innerHTML='<button type="button" class="load" data-load="0" aria-pressed="true"><b>500 kg</b><small>Fixed rating</small></button>';
+  } else {
+    lg.classList.remove('single');
+    lg.innerHTML=T.LOADS.map((L,i)=>{
+      const pr=pPrice(i);
+      return pr===null
+        ? '<button type="button" class="load" data-load="'+i+'" disabled aria-pressed="false" aria-label="'+esc(T.LOAD_CODE[i])+', on request"><b>'+esc(L.cap)+'</b><small>On request</small></button>'
+        : '<button type="button" class="load" data-load="'+i+'" aria-pressed="'+(i===P.load)+'"><b>'+esc(L.cap)+'</b><small>'+esc(L.name)+'</small></button>';
+    }).join('');
+  }
+  // Add bar
+  const item={prod:P.prod,id:P.id,load:P.prod==='tank'?0:P.load,frame:P.frame,qty:P.qty};
+  const price=pPrice();
+  $('#coverDraw').innerHTML=coverSVG();
+  $('#abName').textContent=T.productLabel(item);
+  $('#abSpec').textContent=T.specText(item);
+  const pe=$('#abPrice');
+  if(price===null){ pe.className='price na'; pe.innerHTML='Price on request<small>This load class is not priced for this size</small>'; }
+  else { pe.className='price num'; pe.innerHTML=esc(T.rupees(price))+'<small>per cover, excl. GST</small>'; }
+  const flag=price===null?null:T.flagFor(item), fe=$('#abFlag');
+  fe.hidden=!flag; fe.textContent=flag||'';
+  $('#abQty').value=P.qty;
+  const btn=$('#abAdd');
+  btn.disabled = price===null;
+  btn.textContent = price===null ? 'Price on request' : 'Add '+P.qty+' to quote, '+T.rupees(price*P.qty);
+  if(fk){ const el=document.querySelector('#step1 '+fk); if(el && !el.disabled) el.focus(); }
+  saveQuote();
+}
+$('#prodGrid').addEventListener('click',e=>{ const b=e.target.closest('[data-prod]'); if(!b) return; P.prod=b.dataset.prod; renderPicker(); });
+$('#shapeSeg').addEventListener('click',e=>{ const b=e.target.closest('[data-shape]'); if(!b) return; P.shape=b.dataset.shape; renderPicker(); });
+$('#sizeGrid').addEventListener('click',e=>{ const b=e.target.closest('[data-size]'); if(!b) return; P.id=b.dataset.size; renderPicker(); });
+$('#frameSeg').addEventListener('click',e=>{ const b=e.target.closest('[data-frame]'); if(!b) return; P.frame=b.dataset.frame; renderPicker(); });
+$('#loadGrid').addEventListener('click',e=>{ const b=e.target.closest('[data-load]'); if(!b||b.disabled||P.prod==='tank') return; P.load=+b.dataset.load; renderPicker(); });
+$('#abMinus').addEventListener('click',()=>{ P.qty=Math.max(1,P.qty-1); renderPicker(); });
+$('#abPlus').addEventListener('click',()=>{ P.qty=Math.min(9999,P.qty+1); renderPicker(); });
+$('#abQty').addEventListener('change',e=>{ P.qty=Math.max(1,Math.min(9999,parseInt(e.target.value,10)||1)); renderPicker(); });
+$('#abAdd').addEventListener('click',()=>{
+  const price=pPrice(); if(price===null){ toast('This load class is on request for this size, so it can\'t be priced here.',true); return; }
+  const it=addItem({prod:P.prod,id:P.id,load:P.prod==='tank'?0:P.load,frame:T.normFrame(P.prod,P.frame),qty:P.qty});
+  saveQuote(); renderSummary(); flashSummary();
+  toast(T.productLabel(it)+', '+T.sizeText(it.prod,it.id,it.load)+': '+plural(P.qty,'no.','nos')+' added.');
+});
+
+/* ---------- Customer form ---------- */
+const fieldEls=[...document.querySelectorAll('[data-f]')];
+function fillForm(){ for(const el of fieldEls){ el.value = F[el.dataset.f]==null ? '' : F[el.dataset.f]; } }
+for(const el of fieldEls){
+  const ev = el.tagName==='SELECT'||el.type==='date' ? 'change' : 'input';
+  el.addEventListener(ev,()=>{ F[el.dataset.f]=el.value; saveFields(); renderRef(); renderReady(); if(el.dataset.f==='site') renderSubjectPh(); });
+  if(ev==='input') el.addEventListener('change',()=>{ F[el.dataset.f]=el.value; saveFields(); renderRef(); });
+}
+function renderRef(){ $('#hdrRef').textContent=T.refNo(Object.assign({},F,{qdate:F.qdate||today()})); }
+function renderSubjectPh(){ $('#f_subject').placeholder=T.autoSubject(Q.items,F.site); }
+
+/* ---------- Summary ---------- */
+const openWording=new Set();
+function renderSummary(){
+  const box=$('#sumItems');
+  const n=Q.items.length;
+  $('#sumCount').textContent=plural(n,'item','items');
+  if(!n){
+    box.innerHTML='<div class="empty">'+ICON.empty+'No items yet. Type a line like <code>solid top 600x600 B125 qty 4</code>, or pick a product.</div>';
+  } else {
+    box.innerHTML=Q.items.map(it=>{
+      const price=T.priceOf(it.prod,it.id,it.load,it.frame), flag=T.flagFor(it);
+      return '<div class="item" data-uid="'+it.uid+'">'
+        +'<span class="ic">'+ICON[it.prod]+'</span>'
+        +'<div><div class="nm">'+esc(T.productLabel(it))+'</div><div class="sp">'+esc(T.specText(it))+'</div></div>'
+        +'<button type="button" class="rm" data-act="rm" aria-label="Remove '+esc(T.productLabel(it)+', '+T.specText(it))+'">×</button>'
+        +'<div class="line"><div class="stepper sm" role="group" aria-label="Quantity">'
+          +'<button type="button" data-act="dec" aria-label="Decrease quantity">−</button>'
+          +'<input type="number" min="1" max="9999" inputmode="numeric" value="'+it.qty+'" data-act="qty" aria-label="Quantity">'
+          +'<button type="button" data-act="inc" aria-label="Increase quantity">+</button></div>'
+          +'<span class="x num">× '+esc(T.rupees(price))+'</span><span class="amt num">'+esc(T.rupees(price*it.qty))+'</span></div>'
+        +(flag?'<div class="flag" role="note">'+esc(flag)+'</div>':'')
+        +'<details data-uid="'+it.uid+'"'+(openWording.has(it.uid)?' open':'')+'><summary>Wording on quotation</summary>'
+          +'<label class="sr-only" for="w_'+it.uid+'">Size wording printed in the Excel file</label>'
+          +'<input id="w_'+it.uid+'" data-act="wording" value="'+esc(T.wordingOf(it))+'" placeholder="'+esc(T.defaultWording(it))+'"></details>'
+        +'</div>';
+    }).join('');
+  }
+  renderTotals(); renderReady(); renderSubjectPh();
+}
+function renderTotals(){
+  const t=T.totals(Q.items,Q.discount,Q.gst);
+  const rows=[['Subtotal',t.sub]];
+  if(t.discountPct>0){ rows.push(['Less discount @'+t.discountPct+'%','−'+T.rupees2(t.disc)]); rows.push(['Total after discount',t.base]); }
+  if(t.gstOn) rows.push(['Add GST @18%',t.gst]);
+  $('#totals').innerHTML=rows.map(([l,v])=>'<div><span>'+esc(l)+'</span><span>'+esc(typeof v==='number'?T.rupees2(v):v)+'</span></div>').join('');
+  $('#grandLabel').textContent = t.gstOn ? 'Grand total, incl. GST' : 'Total, GST extra';
+  $('#grandVal').textContent=T.rupees2(t.grand);
+  $('#mCount').textContent=plural(Q.items.length,'item','items');
+  $('#mTotal').textContent=T.rupees2(t.grand);
+  const sw=$('#gstSwitch'); sw.setAttribute('aria-checked',String(Q.gst));
+}
+function canDownload(){ return Q.items.length>0 && String(F.company||'').trim().length>0; }
+function renderReady(){
+  const el=$('#ready');
+  if(canDownload()){ el.className='ready ok'; el.textContent='Ready. The Excel file opens in your QTN format with live formulas.'; }
+  else { el.className='ready'; el.textContent='To download: add at least one item and enter the customer\'s company name.'; }
+}
+const itemOf=el=>{ const row=el.closest('[data-uid]'); return row?Q.items.find(x=>x.uid===row.dataset.uid):null; };
+$('#sumItems').addEventListener('click',e=>{
+  const b=e.target.closest('button[data-act]'); if(!b) return;
+  const it=itemOf(b); if(!it) return;
+  const act=b.dataset.act;
+  if(act==='rm'){ Q.items=Q.items.filter(x=>x!==it); saveQuote(); renderSummary(); toast(T.productLabel(it)+' removed.'); const nb=$('#sumItems button'); if(nb) nb.focus(); return; }
+  if(act==='inc') it.qty=Math.min(9999,it.qty+1);
+  if(act==='dec') it.qty=Math.max(1,it.qty-1);
+  saveQuote(); renderSummary();
+  const again=document.querySelector('#sumItems [data-uid="'+it.uid+'"] [data-act="'+act+'"]'); if(again) again.focus();
+});
+$('#sumItems').addEventListener('change',e=>{
+  if(e.target.dataset.act!=='qty') return;
+  const it=itemOf(e.target); if(!it) return;
+  it.qty=Math.max(1,Math.min(9999,parseInt(e.target.value,10)||1)); saveQuote(); renderSummary();
+});
+$('#sumItems').addEventListener('input',e=>{
+  if(e.target.dataset.act!=='wording') return;
+  const it=itemOf(e.target); if(!it) return;
+  const v=e.target.value.trim();
+  it.wording = (!v || v===T.defaultWording(it)) ? null : v; saveQuote();
+});
+$('#sumItems').addEventListener('toggle',e=>{
+  const d=e.target; if(d.tagName!=='DETAILS') return;
+  if(d.open) openWording.add(d.dataset.uid); else openWording.delete(d.dataset.uid);
+},true);
+$('#discount').addEventListener('input',e=>{
+  const v=parseFloat(e.target.value);
+  Q.discount = isNaN(v) ? 0 : Math.max(0,Math.min(100,v));
+  saveQuote(); renderTotals();
+});
+$('#discount').addEventListener('change',e=>{ e.target.value=Q.discount; });
+$('#gstSwitch').addEventListener('click',()=>{ Q.gst=!Q.gst; saveQuote(); renderTotals(); toast(Q.gst?'GST 18% added to the total.':'GST removed. The quotation will say GST 18% extra.'); });
+$('#btnClear').addEventListener('click',()=>{
+  if(!Q.items.length){ toast('There are no items to clear.'); return; }
+  Q.items=[]; saveQuote(); renderSummary(); toast('All items cleared.');
+});
+$('#btnNew').addEventListener('click',()=>{
+  if(!window.confirm('Start a new quotation? This clears the items and customer details. Terms, signatory and the serial number are kept.')) return;
+  Q.items=[]; Q.discount=0; Q.gst=true; quick.value=''; openWording.clear();
+  for(const k of T.CUSTOMER_KEYS) F[k]=T.DEFAULT_FIELDS[k];
+  F.qdate=today();
+  saveFields(); saveQuote(); fillForm(); $('#discount').value=0; renderParse(); renderSummary(); renderRef();
+  toast('New quotation started. Terms and signatory kept.');
+  $('#f_company').focus();
+});
+$('#mReview').addEventListener('click',()=>{ $('#step3').scrollIntoView({behavior:reduceMotion()?'auto':'smooth',block:'start'}); flashSummary(); });
+
+/* ---------- Model, preview, WhatsApp, download ---------- */
+function model(){ return T.buildModel(Q.items,Object.assign({},F,{qdate:F.qdate||today()}),Q.discount,Q.gst); }
+function needReady(){
+  if(!Q.items.length){ toast('Add at least one item before downloading.',true); quick.focus(); return false; }
+  if(!String(F.company||'').trim()){ toast('Enter the customer\'s company name first.',true); const c=$('#f_company'); c.scrollIntoView({block:'center'}); c.focus(); return false; }
+  return true;
+}
+function logoSrc(b64){ const s=String(b64||'').trim(); if(!s) return ''; return s.startsWith('data:')?s:'data:image/png;base64,'+s; }
+function paperHTML(M){
+  const tp=logoSrc(T.logos.tp), td=logoSrc(T.logos.td);
+  const cols=T.COLW.map(w=>'<col style="width:'+(w/109.47*100).toFixed(3)+'%">').join('');
+  const fmt=n=>T.fmtIN(n,2);
+  let h='<div class="lh">'+(tp?'<img alt="Thermoset Poly Products" src="'+tp+'">':'<span class="ph">Thermoset Poly Products (I) Pvt. Ltd.</span>')
+    +(td?'<img alt="THERMODRAIN" src="'+td+'">':'<span class="ph">THERMODRAIN®</span>')+'</div>';
+  h+='<div class="c">Office address: Raheja Arcade, Off.No.613, Sec – 11, Plot no. 61, CBD Belapur, Navi Mumbai – 400 614.</div>';
+  h+='<div class="c">Tel. no.: 022 40741414 (30 lines) ; Mob.No.7021650820</div>';
+  h+='<div style="display:flex;justify-content:space-between;gap:8px" class="blue"><span>Email: thermodrain@frpmanholecover.com / thermodrain@gmail.com</span><span>webpage: www.frpmanholecover.com</span></div><div class="rule"></div>';
+  h+='<table>'+cols;
+  const kv=(k,v,cls)=>'<tr><td>'+k+'</td><td class="c">:</td><td colspan="6" class="'+(cls||'')+'">'+v+'</td></tr>';
+  if(M.email) h+=kv('EMAIL ON',esc(M.email),'blue u');
+  h+=kv('OUR REF',esc(M.ref))+kv('DATE',esc(M.dateText));
+  h+='<tr class="gap"><td colspan="8"></td></tr>';
+  h+='<tr><td colspan="8" class="b">'+esc(M.company||'—')+'</td></tr>';
+  if(M.city) h+='<tr><td colspan="8">'+esc(M.city)+'</td></tr>';
+  if(M.mobile) h+='<tr><td colspan="8">MOB.NO.: '+esc(M.mobile)+'</td></tr>';
+  if(M.contact) h+='<tr class="gap"><td colspan="8"></td></tr>'+kv('KIND ATTN',esc(M.contact));
+  h+='<tr class="gap"><td colspan="8"></td></tr>';
+  h+='<tr><td class="b" style="vertical-align:top">SUB</td><td class="c b" style="vertical-align:top">:</td><td colspan="6" class="b" style="vertical-align:top">'+esc(M.subject)+'</td></tr>';
+  h+='<tr class="gap"><td colspan="8"></td></tr><tr><td colspan="8">Dear Sir,</td></tr><tr><td colspan="8">'+esc(M.intro)+'</td></tr><tr class="gap"><td colspan="8"></td></tr>';
+  h+='</table><table class="t">'+cols;
+  h+='<tr class="hdr"><td colspan="2">SR. NO.</td><td colspan="2">'+esc(M.sizeHeader)+'</td><td>LOAD BEARING</td><td>QTY (NOS)</td><td>PRICE /PC (RS)</td><td>TOTAL PRICE (RS)</td></tr>';
+  for(const g of M.groups){
+    h+='<tr><td colspan="8" class="c b">'+esc(g.title)+'</td></tr>';
+    if(g.note) h+='<tr><td colspan="8" class="c">'+esc(g.note)+'</td></tr>';
+    for(const it of g.items) h+='<tr><td colspan="2" class="c">'+it.sr+'</td><td colspan="2" class="c">'+esc(it.wording)+'</td><td class="c">'+esc(it.load)+'</td><td class="c">'+it.qty+'</td><td class="r">'+fmt(it.price)+'</td><td class="r">'+fmt(it.amount)+'</td></tr>';
+  }
+  for(const t of M.totalRows) h+='<tr'+(t.yellow?' class="yellow"':'')+'><td colspan="2"></td><td colspan="2"></td><td colspan="3" class="r'+(t.bold?' b':'')+'">'+esc(t.label)+'</td><td class="r'+(t.bold?' b':'')+'">'+fmt(T.round2(t.value))+'</td></tr>';
+  h+='</table><table>'+cols+'<tr class="gap"><td colspan="8"></td></tr><tr><td colspan="3" class="b">TERMS &amp; CONDITIONS</td><td colspan="5"></td></tr>';
+  for(const [k,v] of M.terms) h+='<tr><td colspan="3"></td><td style="vertical-align:top">'+esc(k)+'</td><td colspan="4">: '+esc(v)+'</td></tr>';
+  h+='<tr class="gap"><td colspan="8"></td></tr><tr><td colspan="8">Thanks &amp; Regards,</td></tr>';
+  h+='<tr><td colspan="8" style="height:56px">'+(tp?'<img alt="" src="'+tp+'" style="height:46px;width:auto">':'')+'</td></tr><tr class="gap"><td colspan="8"></td></tr>';
+  h+='<tr><td colspan="8" class="b">'+esc(M.signedBy)+'</td></tr><tr><td colspan="8">'+esc(M.designation)+'</td></tr><tr><td colspan="8">M.NO. '+esc(M.signMobile)+'</td></tr></table>';
+  return h;
+}
+function fitPaper(){
+  const wrap=$('#paperWrap'), paper=$('#paper');
+  const avail=$('#pvBody').clientWidth-32;
+  const sc=Math.min(1,avail/760);
+  paper.style.transform='scale('+sc+')';
+  wrap.style.width=(760*sc)+'px';
+  wrap.style.height=(paper.offsetHeight*sc)+'px';
+}
+const dlg=$('#pvDlg');
+$('#btnPreview').addEventListener('click',()=>{
+  if(!Q.items.length){ toast('Add at least one item to preview the quotation.',true); return; }
+  $('#paper').innerHTML=paperHTML(model());
+  try{ dlg.showModal(); }catch(e){ dlg.setAttribute('open',''); }
+  fitPaper();
+});
+$('#pvClose').addEventListener('click',()=>dlg.close());
+dlg.addEventListener('click',e=>{ if(e.target===dlg) dlg.close(); });
+window.addEventListener('resize',()=>{ if(dlg.open) fitPaper(); });
+$('#pvDownload').addEventListener('click',()=>download());
+
+async function copyText(text){
+  try{ if(navigator.clipboard && window.isSecureContext){ await navigator.clipboard.writeText(text); return true; } }catch(e){}
+  try{
+    const ta=document.createElement('textarea'); ta.value=text; ta.setAttribute('readonly',''); ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select(); const ok=document.execCommand('copy'); ta.remove(); return ok;
+  }catch(e){ return false; }
+}
+$('#btnCopy').addEventListener('click',async()=>{
+  if(!Q.items.length){ toast('Add at least one item before copying.',true); return; }
+  const ok=await copyText(T.whatsappText(model()));
+  toast(ok?'Copied. Paste it into WhatsApp.':'Couldn\'t copy on this device. Use Preview and share a screenshot instead.',!ok);
+});
+
+let busy=false;
+async function download(){
+  if(busy) return;
+  if(!needReady()) return;
+  if(!window.ExcelJS){ toast('The Excel library hasn\'t loaded yet. Check your internet connection, then try again.',true); return; }
+  busy=true; const btn=$('#btnDownload'); btn.disabled=true; btn.textContent='Preparing Excel file…';
+  try{
+    const M=model();
+    const {wb}=T.buildWorkbook(window.ExcelJS,M,T.logos);
+    const buffer=await wb.xlsx.writeBuffer();
+    let saved=false;
+    try{
+      const d = await window.claude?.use?.('downloads');
+      if(d && typeof d.save==='function'){ await d.save({filename:M.filename, data:new Blob([buffer])}); saved=true; }
+    }catch(e){ saved=false; }
+    if(!saved){
+      const blob=new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a'); a.href=url; a.download=M.filename; a.style.display='none';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),4000);
+    }
+    F.serial=(parseInt(F.serial,10)||1)+1; saveFields(); fillForm(); renderRef();
+    toast('Saved. Next quotation will be no. '+T.pad3(F.serial)+'.');
+  }catch(e){
+    console.error(e);
+    toast('The Excel file couldn\'t be created. Try again, and if it keeps failing reload the page.',true);
+  }finally{
+    busy=false; btn.disabled=false; btn.textContent='Download Excel quotation';
+  }
+}
+$('#btnDownload').addEventListener('click',()=>download());
+
+/* ---------- Header logo ---------- */
+(function(){
+  const src=logoSrc(T.logos.td); if(!src) return;
+  const img=new Image(); img.alt='THERMODRAIN'; img.src=src;
+  img.onload=()=>{ const p=$('#logoPlate'); p.innerHTML=''; p.appendChild(img); };
+})();
+
+/* ---------- Init ---------- */
+fillForm();
+$('#discount').value=Q.discount;
+renderParse(); renderPicker(); renderSummary(); renderRef();
+window.__tdApp={Q,F,P,addFromText,download,model};
+})();
+</script>
+</body>
+</html>
