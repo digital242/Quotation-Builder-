@@ -16,7 +16,7 @@ const URL_ = 'file://' + INDEX;
 let pass = 0, fail = 0; const results = [];
 async function test(name, fn) {
   try { await fn(); pass++; results.push('PASS  ' + name); }
-  catch (e) { fail++; results.push('FAIL  ' + name + '\n      ' + String(e && e.message || e).split('\n')[0]); }
+  catch (e) { fail++; results.push('FAIL  ' + name + '\n      ' + String(e && e.stack || e).split('\n').slice(0,3).join(' ')); }
 }
 const eq = (a, b, m) => { if (a !== b) throw new Error((m ? m + ': ' : '') + 'expected ' + JSON.stringify(b) + ', got ' + JSON.stringify(a)); };
 const ok = (c, m) => { if (!c) throw new Error(m || 'assertion failed'); };
@@ -213,6 +213,58 @@ await test('UI: preview dialog, WhatsApp text, persistence, new quotation keeps 
   eq(await page.inputValue('#f_company'), ''); eq(await page.inputValue('#f_contact'), '');
   eq(await page.inputValue('#f_signedBy'), 'A N OTHER');
   ok((await page.textContent('#sumItems')).includes('No items yet.'));
+  await ctx.close();
+});
+
+await test('UI: transport choice and payment slabs (presets, add, remove, 100% check blocks download)', async () => {
+  const { ctx, page } = await newPage();
+  await typeLines(page, ['solid 600x600 b125 qty 1']); await page.keyboard.press('Enter');
+  await page.fill('#f_company', 'Slab Co');
+  await page.click('#moreBox summary');
+  eq(await page.inputValue('#f_transportMode'), 'Ex-works');
+  ok((await page.textContent('#transportHint')).endsWith('EX-WORKS PANVEL'));
+  await page.selectOption('#f_transportMode', 'CIF');
+  await page.fill('#f_transportPlace', 'Jebel Ali');
+  ok((await page.textContent('#transportHint')).endsWith('CIF JEBEL ALI'));
+  await page.selectOption('#f_transportMode', 'Extra');
+  ok(await page.isHidden('#placeFld'));
+  await page.selectOption('#f_transportMode', 'FOB');
+  await page.fill('#f_transportPlace', 'Nhava Sheva');
+  await page.click('#payPresets button:nth-child(3)'); // 30 / 70
+  eq(await page.locator('#slabList .slab').count(), 2);
+  await page.fill('#sp1', '60');
+  ok((await page.textContent('#slabTotal')).includes('add up to 90%'));
+  ok((await page.textContent('#ready')).includes('fix the payment slabs'));
+  await page.click('#btnDownload');
+  ok((await lastToast(page)).includes('add up to 90%'));
+  await page.click('#slabAdd');
+  eq(await page.inputValue('#sp2'), '10');
+  eq(await page.evaluate(() => document.activeElement.id), 'ss2');
+  await page.keyboard.type('WITHIN 30 DAYS OF DELIVERY');
+  ok((await page.textContent('#slabTotal')).startsWith('Total 100%'));
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#btnDownload')]);
+  const file = path.join(OUT, 'ui-slabs.xlsx'); await dl.saveAs(file);
+  const wb = new ExcelJS.Workbook(); await wb.xlsx.readFile(file); const ws = wb.getWorksheet('Quotation');
+  const terms = {}; ws.eachRow(row => { const k = row.getCell(4).value; if (typeof k === 'string') terms[k] = row.getCell(5).value; });
+  eq(terms.TRANSPORTATION, ': FOB NHAVA SHEVA');
+  eq(terms.PAYMENTS, ': 30 % ADVANCE WITH PO\n  60 % BEFORE DISPATCH\n  10 % WITHIN 30 DAYS OF DELIVERY');
+  // remove a slab, reload: settings persist
+  await page.click('#slabList .slab:nth-child(3) .rm');
+  eq(await page.locator('#slabList .slab').count(), 2);
+  await page.reload(); await page.waitForFunction(() => !!window.__tdApp);
+  eq(await page.inputValue('#f_transportMode'), 'FOB'); eq(await page.inputValue('#f_transportPlace'), 'Nhava Sheva');
+  eq(await page.locator('#slabList .slab').count(), 2);
+  eq(page.errors.length, 0, page.errors.join());
+  await ctx.close();
+});
+
+await test('UI: old saved terms (free-text transport/payments) are migrated', async () => {
+  const { ctx, page } = await newPage();
+  await page.evaluate(() => localStorage.setItem('td_qtn_fields', JSON.stringify({ company: 'Old', transport: 'Extra', payments: '100 % ADVANCE', serial: 7 })));
+  await page.reload(); await page.waitForFunction(() => !!window.__tdApp);
+  eq(await page.inputValue('#f_transportMode'), 'Extra');
+  eq(await page.inputValue('#sp0'), '100'); eq(await page.inputValue('#ss0'), 'ADVANCE');
+  eq(await page.inputValue('#f_serial'), '7');
   await ctx.close();
 });
 

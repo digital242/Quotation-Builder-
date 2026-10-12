@@ -172,6 +172,28 @@ await test('wording, subject and intro', () => {
   eq(TD.fmtIN(41312390, 2), '4,13,12,390.00'); eq(TD.rupees2(413123.9), '₹4,13,123.90');
 });
 
+await test('transport options: Ex-works / FOB / CIF / Extra', () => {
+  eq(TD.transportText({}), 'EX-WORKS PANVEL');
+  eq(TD.transportText({ transportMode: 'Ex-works', transportPlace: 'taloja' }), 'EX-WORKS TALOJA');
+  eq(TD.transportText({ transportMode: 'FOB', transportPlace: 'Nhava Sheva' }), 'FOB NHAVA SHEVA');
+  eq(TD.transportText({ transportMode: 'CIF', transportPlace: 'Jebel Ali' }), 'CIF JEBEL ALI');
+  eq(TD.transportText({ transportMode: 'CIF' }), 'CIF');
+  eq(TD.transportText({ transportMode: 'Extra', transportPlace: 'x' }), 'Extra');
+});
+await test('payment slabs: lines, totals and plain-language problems', () => {
+  const f = { paySlabs: [{ pct: 30, stage: 'advance with PO' }, { pct: '70', stage: 'before dispatch' }] };
+  eq(TD.paymentLines(f).join(' | '), '30 % ADVANCE WITH PO | 70 % BEFORE DISPATCH');
+  eq(TD.slabProblem(f), '');
+  eq(TD.paymentLines({}).join(), '100 % ADVANCE');
+  eq(TD.slabProblem({ paySlabs: [{ pct: 50, stage: 'ADVANCE' }, { pct: 40, stage: 'ON DELIVERY' }] }), 'Payment slabs add up to 90%. Make them 100%.');
+  eq(TD.slabProblem({ paySlabs: [{ pct: 50, stage: 'ADVANCE' }, { pct: 50, stage: '' }] }), 'Every payment slab needs a stage, for example ADVANCE or BEFORE DISPATCH.');
+  eq(TD.slabProblem({ paySlabs: [{ pct: 33.33, stage: 'A' }, { pct: 33.33, stage: 'B' }, { pct: 33.34, stage: 'C' }] }), '');
+  const M = TD.buildModel([TD.parseLine('tank 600 qty 1').item], { ...FIELDS, transportMode: 'FOB', transportPlace: 'Nhava Sheva', ...f }, 0, true);
+  eq(M.terms.find(t => t[0] === 'TRANSPORTATION')[1], 'FOB NHAVA SHEVA');
+  eq(M.terms.find(t => t[0] === 'PAYMENTS')[1], '30 % ADVANCE WITH PO\n70 % BEFORE DISPATCH');
+  ok(TD.whatsappText(M).includes('PAYMENTS: 30 % ADVANCE WITH PO; 70 % BEFORE DISPATCH'));
+});
+
 /* ---------------- Excel ---------------- */
 async function makeXlsx(name, lines, discount, gst, fields = FIELDS) {
   const items = []; addAll(items, lines);
@@ -240,6 +262,16 @@ await test('Excel: sheet setup (name, A4, fit 1×1, margins, gridlines, widths, 
   ok(styles.includes('formatCode="' + TD.NUMFMT + '"'), 'Indian-grouping number format in styles.xml');
   eq(ws.getCell('G' + (x48.firstItemRow + 2)).numFmt, TD.NUMFMT.replace(/\\/g, ''));
 });
+await test('Excel: CIF transport and 3 payment slabs print on separate lines with enough row height', async () => {
+  const slabs = [{ pct: 30, stage: 'ADVANCE WITH PO' }, { pct: 60, stage: 'AGAINST PROFORMA INVOICE BEFORE DISPATCH' }, { pct: 10, stage: 'WITHIN 30 DAYS OF DELIVERY' }];
+  const x = await makeXlsx('QTN_slabs.xlsx', FOUR, 0, true, { ...FIELDS, transportMode: 'CIF', transportPlace: 'Jebel Ali', paySlabs: slabs });
+  let pay = null, tr = null;
+  x.ws.eachRow((row, rn) => { if (row.getCell(4).value === 'PAYMENTS') pay = rn; if (row.getCell(4).value === 'TRANSPORTATION') tr = rn; });
+  eq(x.ws.getCell(tr, 5).value, ': CIF JEBEL ALI');
+  eq(x.ws.getCell(pay, 5).value, ': 30 % ADVANCE WITH PO\n  60 % AGAINST PROFORMA INVOICE BEFORE DISPATCH\n  10 % WITHIN 30 DAYS OF DELIVERY');
+  ok(x.ws.getCell(pay, 5).alignment.wrapText);
+  ok(x.ws.getRow(pay).height >= 50, 'payments row height ' + x.ws.getRow(pay).height);
+});
 await test('Excel: GST off → last TOTAL is bold+yellow and term says 18% Extra', async () => {
   const x = await makeXlsx('QTN_gst_off.xlsx', FOUR, 0, false);
   const at = x.totalRowsAt; eq(Object.keys(at).join(','), 'total');
@@ -270,7 +302,7 @@ function convert(file, fmt, outdir) {
 }
 await test('9a. LibreOffice prints each generated file on exactly one A4 page', async () => {
   if (!SO) throw new Error('LibreOffice not installed: skipped');
-  for (const f of ['QTN_discount48.xlsx', 'QTN_all.xlsx', 'QTN_gst_off.xlsx']) {
+  for (const f of ['QTN_discount48.xlsx', 'QTN_all.xlsx', 'QTN_gst_off.xlsx', 'QTN_slabs.xlsx']) {
     convert(path.join(OUT, f), 'pdf', OUT);
     const info = execFileSync('pdfinfo', [path.join(OUT, f.replace('.xlsx', '.pdf'))]).toString();
     eq(info.match(/Pages:\s+(\d+)/)[1], '1', f + ' pages');
