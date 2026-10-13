@@ -208,11 +208,18 @@ await test('chambers: fully custom size, finish, load, frame and price', () => {
   eq(M.groups[0].note, null);
   ok(M.subject.startsWith('OFFER FOR THERMODRAIN FRP CHAMBER'), M.subject);
 });
-await test('frames on every product: FRP is list price; MS / without frame need a typed price', () => {
+await test('frames: FRP is list price; without frame needs a typed price; MS only for multi-cover and chambers', () => {
   const a = TD.parseLine('solid 600x600 b125 qty 2');
   eq(a.item.frame, 'frp'); eq(a.price, 12345);
-  const ms = TD.parseLine('solid 600x600 b125 ms frame price 15000 qty 2');
-  ok(ms.ok, ms.error); eq(ms.item.frame, 'ms'); eq(ms.price, 15000);
+  eq(TD.parseLine('solid 600x600 b125 ms frame price 15000 qty 2').error, 'MS frame is only for multi-cover manhole covers (2 covers, single frame) and chambers. Use FRP frame or without frame for this cover.');
+  eq(TD.allowedFrames('solid', 's600').join(), 'frp,none'); eq(TD.allowedFrames('solid', 's900t').join(), 'ms,frp,none');
+  eq(TD.allowedFrames('custom').join(), 'ms,frp,none'); eq(TD.allowedFrames('gully', 's600').join(), 'without,with');
+  eq(TD.normFrame('solid', 'ms', 's600'), 'frp', 'old saved MS frame on a single cover falls back to FRP');
+  const ms = TD.parseLine('solid 900x900 2.5t ms frame qty 2');
+  eq(ms.ok, false, 'MS frame refused on the single 900 cover');
+  const msf = TD.parseLine('solid 1000x1000 b125 without frame price 15000 qty 2');
+  ok(msf.ok, msf.error); eq(msf.item.frame, 'none'); eq(msf.price, 15000);
+
   eq(TD.parseLine('solid 600x600 b125 without frame qty 1').error, 'Without frame has no list price for this cover. Add the price per piece, for example price 6500.');
   const none = TD.parseLine('air water tight 600x600 b125 cover only price 9000');
   ok(none.ok, none.error); eq(none.item.frame, 'none');
@@ -221,10 +228,10 @@ await test('frames on every product: FRP is list price; MS / without frame need 
   eq(TD.normFrame('solid', null, 's900t'), 'ms'); eq(TD.unitPrice({ ...tw, frame: 'ms' }), 20725); eq(TD.isManual({ ...tw, frame: 'frp' }), true);
   // the typed price never replaces a list price
   eq(TD.parseLine('solid 600x600 b125 price 1 qty 1').price, 12345);
-  const M = TD.buildModel([a.item, ms.item, none.item], FIELDS, true);
+  const M = TD.buildModel([a.item, msf.item, none.item, { ...tw, frame: 'ms' }], FIELDS, true);
   eq(M.groups.map(g => g.title).join(' | '),
-    '‘THERMODRAIN’ FRP/GRP SOLID TOP MANHOLE COVER WITH FRAME | ‘THERMODRAIN’ FRP/GRP SOLID TOP MANHOLE COVER WITH MS FRAME | ‘THERMODRAIN’ FRP/GRP AIR & WATER TIGHT COVER WITHOUT FRAME');
-  ok(TD.itemKey(a.item) !== TD.itemKey(ms.item), 'different frames never merge');
+    '‘THERMODRAIN’ FRP/GRP SOLID TOP MANHOLE COVER WITH FRAME | ‘THERMODRAIN’ FRP/GRP SOLID TOP MANHOLE COVER WITHOUT FRAME | ‘THERMODRAIN’ FRP/GRP AIR & WATER TIGHT COVER WITHOUT FRAME | ‘THERMODRAIN’ FRP/GRP SOLID TOP MANHOLE COVER WITH MS FRAME');
+  ok(TD.itemKey(a.item) !== TD.itemKey(msf.item), 'different frames never merge');
 });
 await test('recess depth prints in the wording and keeps the list price', () => {
   const r = TD.parseLine('recess 600x600 b125 depth 75 qty 2');
@@ -347,13 +354,13 @@ await test('Excel: CIF transport and 3 payment slabs print on separate lines wit
 });
 await test('Excel: chambers, MS frame, depth, mixed discounts, USD row and address', async () => {
   const lines = ['solid 600x600 b125 qty 4 10% disc', 'recess 600x600 b125 depth 75 qty 2 20% disc', 'chamber 1000x1000x600 two sided b125 price 45000 qty 2',
-    'solid 600x600 b125 ms frame price 15000 qty 2'];
+    'solid 600x600 b125 without frame price 15000 qty 2'];
   const x = await makeXlsx('QTN_new.xlsx', lines, undefined, true, { ...FIELDS, address: 'Plot 12, Peenya Industrial Area, Phase 2', usdRate: '88.5' });
   const ws = x.ws, at = x.totalRowsAt;
   const find = txt => { let hit = null; ws.eachRow(row => row.eachCell(c => { if (!hit && c.value === txt) hit = c; })); return hit; };
   ok(find('PLOT 12, PEENYA INDUSTRIAL AREA, PHASE 2'), 'address printed');
   ok(find('‘THERMODRAIN’ FRP CHAMBER WITH MS FRAME'), 'chamber group');
-  ok(find('‘THERMODRAIN’ FRP/GRP SOLID TOP MANHOLE COVER WITH MS FRAME'), 'ms frame group');
+  ok(find('‘THERMODRAIN’ FRP/GRP SOLID TOP MANHOLE COVER WITHOUT FRAME'), 'without-frame group');
   ok(find('1000 mm (L) x 1000 mm (W) x 600 mm (H), two-sided finish'), 'chamber wording');
   ok(find('600 mm x 600 mm (24" x 24") clear opening, recess depth 75 mm'), 'depth wording');
   const disc = ws.getCell('H' + at.disc).value;

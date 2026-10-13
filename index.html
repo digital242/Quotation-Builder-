@@ -108,8 +108,13 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue)}
 .adjust .fld .btn.sm{min-height:38px;padding:6px 12px}
 .mode{border:1px solid var(--border);border-radius:12px;padding:10px 12px 12px;margin:4px 0 12px}
 .mode-label{display:block;font-size:13px;font-weight:700;margin-bottom:8px}
-.mode-seg{display:flex;width:100%}
-.mode-seg button{flex:1 1 0;padding:9px 6px;font-size:13.5px;font-weight:600;white-space:nowrap}
+.ctoggle{position:relative;display:grid;grid-template-columns:1fr 1fr;width:100%;padding:4px;border:1px solid var(--border);border-radius:999px;background:var(--tint);min-height:46px}
+.ctoggle::before{content:"";position:absolute;top:4px;bottom:4px;left:4px;width:calc(50% - 4px);border-radius:999px;background:var(--blue);transition:transform .2s ease}
+.ctoggle[aria-checked="true"]::before{transform:translateX(100%)}
+.ctoggle .opt{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:700;color:var(--blue);padding:6px 4px;text-align:center;line-height:1.2;transition:color .2s ease}
+.ctoggle[aria-checked="false"] .opt-gst,.ctoggle[aria-checked="true"] .opt-usd{color:#fff}
+.ctoggle:hover{border-color:var(--blue-h)}
+.disc-hint{margin:-2px 0 10px;font-size:12px;color:var(--muted);line-height:1.4}
 .mode .rate{margin-top:10px}
 .mode-hint{margin:8px 0 0;font-size:12.5px;color:var(--muted);line-height:1.4}
 .mode-hint.bad{color:var(--red);font-weight:600}
@@ -465,15 +470,15 @@ dialog.pv::backdrop{background:rgba(27,42,74,.55)}
       <div class="card-h"><span class="stepnum" aria-hidden="true">3</span><h2 id="s3h">Quotation</h2><span class="aside" id="sumCount">0 items</span></div>
       <div class="items" id="sumItems"></div>
       <div class="adjust">
-        <div class="fld"><label for="discount">Discount % for all items</label><input id="discount" type="number" min="0" max="100" step="0.5" inputmode="decimal" placeholder="0"><button type="button" class="btn btn-secondary sm" id="discApply">Apply</button></div>
+        <div class="fld"><label for="discount">Average discount %</label><input id="discount" type="number" min="0" max="100" step="any" inputmode="decimal" placeholder="0" aria-describedby="discHint"><button type="button" class="btn btn-secondary sm" id="discApply">Apply to all</button></div>
       </div>
+      <p class="disc-hint" id="discHint">Worked out from every item's discount, weighted by value. Type a new % and press Apply to all to give every item that discount.</p>
       <div class="mode">
         <span class="mode-label" id="lblMode">Tax and currency</span>
-        <div class="seg mode-seg" id="modeSeg" role="group" aria-labelledby="lblMode">
-          <button type="button" data-mode="gst" aria-pressed="true">₹ + GST 18%</button>
-          <button type="button" data-mode="nogst" aria-pressed="false">₹, GST extra</button>
-          <button type="button" data-mode="usd" aria-pressed="false">US$ export</button>
-        </div>
+        <button type="button" class="ctoggle" id="modeToggle" role="switch" aria-checked="false" aria-describedby="modeHint">
+          <span class="sr-only">Convert to US dollars for export, without GST</span>
+          <span class="opt opt-gst" aria-hidden="true">₹ + GST 18%</span><span class="opt opt-usd" aria-hidden="true">US$ export, no GST</span>
+        </button>
         <div class="fld rate" id="rateFld" hidden><label for="f_usdRate">Exchange rate, ₹ per US$</label><input id="f_usdRate" data-f="usdRate" type="number" min="0" step="any" inputmode="decimal" placeholder="e.g. 88.50"></div>
         <p class="mode-hint" id="modeHint"></p>
       </div>
@@ -758,9 +763,15 @@ function lcFirst(x){ return x.charAt(0).toLowerCase()+x.slice(1); }
 const FRAME_TITLE={frp:'WITH FRAME',ms:'WITH MS FRAME',none:'WITHOUT FRAME'};
 function isTwinItem(it){ const f=it.prod!=='custom'&&findRow(it.prod,it.id); return !!(f&&isTwin(f.row)); }
 function listFrame(it){ return it.prod==='custom' ? 'ms' : isTwinItem(it) ? 'ms' : 'frp'; }
+/* MS frame is offered only for multi-cover manhole covers ("2 covers, single frame") and chambers. */
+function allowedFrames(prod,id){
+  if(prod==='gully') return ['without','with'];
+  if(prod==='custom' || isTwinItem({prod,id})) return ['ms','frp','none'];
+  return ['frp','none'];
+}
 function normFrame(prod,frame,id){
   if(prod==='gully') return frame==='with'?'with':'without';
-  if(['frp','ms','none'].includes(frame)) return frame;
+  if(allowedFrames(prod,id).includes(frame)) return frame;
   return listFrame({prod,id});
 }
 /* True when the unit price is typed in by hand (chambers, non-listed frames). */
@@ -1013,6 +1024,7 @@ function parseLine(raw){
     return fail(shown+' is not in the '+DATA[prod].name+' price list.');
   }
   if(load===null) return fail('Add the load class: 2.5 T, 5 T, B125, C250, D400 or E600.');
+  if(frame==='ms' && !allowedFrames(prod,hit.row[0]).includes('ms')) return fail('MS frame is only for multi-cover manhole covers (2 covers, single frame) and chambers. Use FRP frame or without frame for this cover.');
   const item={prod,id:hit.row[0],load,frame:normFrame(prod,frame,hit.row[0]),qty,disc,depth};
   if(isManual(item)){
     if(!(price>0)) return fail(FRAME_LABEL[item.frame]+' has no list price for this cover. Add the price per piece, for example price 6500.');
@@ -1296,7 +1308,7 @@ function buildWorkbook(ExcelJS,M,logos){
 }
 
 return {LOADS,DATA,FLAGS,PRODUCTS,SHAPES,LOAD_CODE,LOAD_PRINT,PRINT_NAME,GROUP_TITLE,GROUP_NOTE,GULLY_OTO,DEFAULT_FIELDS,CUSTOMER_KEYS,COLW,NUMFMT,
-  findRow,serialOf,lcFirst,isLoadIdx,isTwin,isTwinItem,priceOf,normFrame,listFrame,isManual,listPrice,unitPrice,pctOf,depthOf,itemDisc,itemSizeText,itemLoadText,itemLoadPrint,finishText,customName,groupTitle,FRAME_LABEL,usdRateOf,fmtUS,usd2,pctLabel,modeOf,linePrice,money,moneyShort,NUMFMT_USD,itemKey,groupKey,flagFor,gullyOTO,inchesOf,sizeText,loadText,loadPrint,productLabel,specText,
+  findRow,allowedFrames,serialOf,lcFirst,isLoadIdx,isTwin,isTwinItem,priceOf,normFrame,listFrame,isManual,listPrice,unitPrice,pctOf,depthOf,itemDisc,itemSizeText,itemLoadText,itemLoadPrint,finishText,customName,groupTitle,FRAME_LABEL,usdRateOf,fmtUS,usd2,pctLabel,modeOf,linePrice,money,moneyShort,NUMFMT_USD,itemKey,groupKey,flagFor,gullyOTO,inchesOf,sizeText,loadText,loadPrint,productLabel,specText,
   defaultWording,wordingOf,TRANSPORT_MODES,PAY_PRESETS,transportText,paySlabsOf,slabTotal,slabProblem,paymentLines,fmtIN,rupees,rupees2,round2,ddmmyyyy,fyOf,pad3,todayISO,refNo,parseLine,describeParsed,matchSize,
   totals,autoSubject,introText,buildModel,whatsappText,wrapLines,rowHeightFor,buildWorkbook,stripB64,
   logos:{tp:LOGO_TP,td:LOGO_TD}};
@@ -1360,7 +1372,7 @@ const saved=store.get(K_QUOTE)||{};
 const oldDisc=+saved.discount||0; // older versions had one discount for the whole quote
 const Q={
   items:(Array.isArray(saved.items)?saved.items:[]).map(it=>normItem(it,oldDisc)).filter(Boolean).map(it=>Object.assign({uid:uid()},it)),
-  mode:['gst','nogst','usd'].includes(saved.mode)?saved.mode:(saved.gst===false?'nogst':'gst'),
+  mode:saved.mode==='usd'?'usd':'gst', // only two modes: rupees with GST, or US$ export without GST
   draft:typeof saved.draft==='string'?saved.draft:''
 };
 const P=Object.assign({prod:'solid',shape:'Square',id:'s600',frame:'frp',load:2,qty:1,depth:'',price:'',
@@ -1458,10 +1470,7 @@ function closestRow(rows,target){
   for(const r of list){ const d=Math.abs(r[2][0]-target)+(r[2][1]?Math.abs(r[2][1]-target)*0.01:0); if(d<bd){bd=d;best=r;} }
   return best;
 }
-function frameOptions(){
-  if(P.prod==='gully') return ['without','with'];
-  return ['frp','ms','none'];
-}
+function frameOptions(){ return T.allowedFrames(P.prod,P.id); }
 function normalisePicker(){
   P.qty=Math.max(1,Math.min(9999,parseInt(P.qty,10)||1));
   if(P.prod==='custom'){ if(!['frp','ms','none'].includes(P.frame)) P.frame='ms'; return; }
@@ -1773,12 +1782,11 @@ function refreshRow(it){
   renderTotals();
 }
 function renderMode(){
-  $('#modeSeg').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===Q.mode)));
+  $('#modeToggle').setAttribute('aria-checked',String(Q.mode==='usd'));
   $('#rateFld').hidden = Q.mode!=='usd';
   const h=$('#modeHint'), rate=rateNow();
   h.className='mode-hint'+(Q.mode==='usd'&&!rate?' bad':'');
   h.textContent = Q.mode==='gst' ? 'Prices in ₹. GST 18% is added to the total. No USD amounts.'
-    : Q.mode==='nogst' ? 'Prices in ₹. The quotation says GST 18% extra.'
     : rate ? 'Export quotation: every price is converted at ₹'+rate+' per US$. No GST.'
     : 'Enter the exchange rate to convert the prices to US$. No GST on export.';
 }
@@ -1792,7 +1800,10 @@ function renderTotals(){
   }
   if(t.gstOn) rows.push(['Add GST @18%',M2(t.gst)]);
   $('#totals').innerHTML=rows.map(([l,v])=>'<div><span>'+esc(l)+'</span><span>'+esc(v)+'</span></div>').join('');
-  $('#grandLabel').textContent = Q.mode==='gst' ? 'Grand total, incl. GST' : Q.mode==='usd' ? 'Total in US$, export, no GST' : 'Total, GST extra';
+  $('#grandLabel').textContent = Q.mode==='usd' ? 'Total in US$, export, no GST' : 'Grand total, incl. GST';
+  // the discount box always shows the current average discount (weighted by value)
+  const di=$('#discount');
+  if(document.activeElement!==di) di.value = !t.hasDisc ? '' : String(t.uniformPct!==null ? t.uniformPct : T.round2(t.avgPct));
   $('#grandVal').textContent = noRate ? 'US$ —' : M2(t.grand);
   $('#mCount').textContent=plural(Q.items.length,'item','items');
   $('#mTotal').textContent = noRate ? 'US$ —' : M2(t.grand);
@@ -1847,10 +1858,9 @@ function applyDiscAll(){
 }
 $('#discApply').addEventListener('click',applyDiscAll);
 $('#discount').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); applyDiscAll(); } });
-$('#modeSeg').addEventListener('click',e=>{
-  const b=e.target.closest('[data-mode]'); if(!b||b.dataset.mode===Q.mode) return;
-  Q.mode=b.dataset.mode; saveQuote(); renderSummary();
-  toast(Q.mode==='gst'?'GST 18% added. Prices in ₹, no USD.':Q.mode==='nogst'?'Prices in ₹. The quotation will say GST 18% extra.':'Export quotation in US$. GST does not apply.');
+$('#modeToggle').addEventListener('click',()=>{
+  Q.mode = Q.mode==='usd' ? 'gst' : 'usd'; saveQuote(); renderSummary();
+  toast(Q.mode==='gst'?'GST 18% added. Prices in ₹, no USD.':'Export quotation in US$. GST does not apply.');
   if(Q.mode==='usd' && !rateNow()) $('#f_usdRate').focus();
 });
 $('#btnClear').addEventListener('click',()=>{

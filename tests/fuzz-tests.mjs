@@ -39,7 +39,7 @@ function randomItem() {
     const shapes = TD.SHAPES.filter(s => (TD.DATA[prod].shapes[s] || []).length);
     const row = pick(TD.DATA[prod].shapes[pick(shapes)]);
     const load = prod === 'tank' ? 0 : Math.floor(rnd() * 6);
-    const frame = prod === 'gully' ? pick(['with', 'without']) : pick(['frp', 'frp', 'frp', 'ms', 'none']);
+    const frame = prod === 'gully' ? pick(['with', 'without']) : pick([...TD.allowedFrames(prod, row[0]), 'frp', 'frp']);
     const it = { prod, id: row[0], load, frame, qty: 1 + Math.floor(rnd() * 40), disc: pick([0, 0, 0, 5, 10, 15, 48]),
       depth: prod === 'recess' && rnd() < 0.5 ? pick([50, 75, 100]) : null };
     if (TD.isManual(it)) it.price = Math.round(2000 + rnd() * 90000);

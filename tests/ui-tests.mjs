@@ -300,10 +300,11 @@ await test('UI: custom chamber, MS frame with typed price, recess depth', async 
   await page.click('#abAdd');
   const sum = await page.textContent('#sumItems');
   ok(sum.includes('FRP Inspection Chamber, with MS frame') && sum.includes('1200 × 900 × 750 mm, two-sided finish, D400'), sum);
-  // solid with MS frame needs a price
+  // single solid cover: no MS frame option; without frame needs a price
   await page.click('[data-prod="solid"]'); await page.click('[data-shape="Square"]'); await page.click('[data-size="s600"]'); await page.click('[data-load="2"]');
   eq((await page.textContent('#abPrice')).startsWith('₹12,345'), true);
-  await page.click('[data-frame="ms"]');
+  eq(await page.locator('#frameSeg [data-frame="ms"]').count(), 0, 'no MS frame on a single cover');
+  await page.click('[data-frame="none"]');
   ok(await page.isVisible('#abManual')); ok(await page.isDisabled('#abAdd'));
   await page.fill('#abPriceIn', '15000'); await page.click('#abAdd');
   // recess depth
@@ -312,7 +313,7 @@ await test('UI: custom chamber, MS frame with typed price, recess depth', async 
   ok((await page.textContent('#abSpec')).includes('recess depth 75 mm'));
   await page.click('#abAdd');
   const M = await page.evaluate(() => window.__tdApp.model());
-  eq(M.groups.map(g => g.title).join(' | '), '‘THERMODRAIN’ FRP INSPECTION CHAMBER WITH MS FRAME | ‘THERMODRAIN’ FRP/GRP SOLID TOP MANHOLE COVER WITH MS FRAME | ‘THERMODRAIN’ FRP/GRP RECESS COVER WITH FRAME');
+  eq(M.groups.map(g => g.title).join(' | '), '‘THERMODRAIN’ FRP INSPECTION CHAMBER WITH MS FRAME | ‘THERMODRAIN’ FRP/GRP SOLID TOP MANHOLE COVER WITHOUT FRAME | ‘THERMODRAIN’ FRP/GRP RECESS COVER WITH FRAME');
   ok(M.groups[2].items[0].wording.endsWith('recess depth 75 mm'));
   // manual price can be changed in the summary
   await page.fill('#sumItems .item:nth-child(2) input[data-act=price]', '16000'); await page.press('#sumItems .item:nth-child(2) input[data-act=price]', 'Tab');
@@ -328,6 +329,8 @@ await test('UI: per-item discounts, average discount, apply to all; US$ export m
   await page.fill('#sumItems .item:nth-child(2) input[data-act=disc]', '20');
   const tot = await page.textContent('#totals');
   ok(tot.includes('Less discount, average 15.90%') && tot.includes('−₹19,130.00'), tot);
+  await page.click('#f_company');
+  eq(await page.inputValue('#discount'), '15.9', 'discount box shows the average of all items');
   await page.fill('#discount', '12'); await page.click('#discApply');
   eq(await page.inputValue('#sumItems .item:nth-child(2) input[data-act=disc]'), '12');
   ok((await page.textContent('#totals')).includes('Less discount @12%'));
@@ -335,8 +338,9 @@ await test('UI: per-item discounts, average discount, apply to all; US$ export m
   ok(await page.isHidden('#rateFld'));
   for (const sel of ['#sumItems', '#totals', '#grandVal']) ok(!(await page.textContent(sel)).includes('US$'), 'no US$ amounts in GST mode: ' + sel);
   // US$ export: no GST, rate required
-  await page.click('[data-mode="usd"]');
-  eq(await page.getAttribute('[data-mode="usd"]', 'aria-pressed'), 'true');
+  eq(await page.getAttribute('#modeToggle', 'aria-checked'), 'false');
+  await page.click('#modeToggle');
+  eq(await page.getAttribute('#modeToggle', 'aria-checked'), 'true');
   ok(await page.isVisible('#rateFld'));
   eq(await page.textContent('#grandVal'), 'US$ —');
   await page.fill('#f_company', 'USD Co');
@@ -355,7 +359,7 @@ await test('UI: per-item discounts, average discount, apply to all; US$ export m
   ok(all.includes('PRICE /PC (US$)') && all.includes('TOTAL (US$)'), 'US$ quotation');
   ok(!all.some(v => /ADD : GST|INCL\. 18% GST/.test(v)), 'no GST rows');
   // back to GST: USD disappears again
-  await page.click('[data-mode="gst"]');
+  await page.click('#modeToggle');
   ok((await page.textContent('#totals')).includes('Add GST @18%')); ok(!(await page.textContent('#totals')).includes('US$'));
   ok(await page.isHidden('#rateFld'));
   await ctx.close();
@@ -390,7 +394,7 @@ await test('UI: saved customers (save, pick, delete, auto-save on download, pers
 await test('UI: no stale typed price, serial stays consistent, twin frame wording', async () => {
   const { ctx, page } = await newPage();
   await page.click('[data-prod="solid"]'); await page.click('[data-shape="Square"]'); await page.click('[data-size="s600"]'); await page.click('[data-load="2"]');
-  await page.click('[data-frame="ms"]'); await page.fill('#abPriceIn', '15000');
+  await page.click('[data-frame="none"]'); await page.fill('#abPriceIn', '15000');
   eq(await page.textContent('#abAdd'), 'Add 1 to quote, ₹15,000');
   await page.click('[data-size="s900"]');
   eq(await page.inputValue('#abPriceIn'), '', 'price cleared after size change');
