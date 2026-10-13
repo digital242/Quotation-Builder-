@@ -50,8 +50,8 @@ const FOUR = [
 await test('1. four pasted lines add 4 items at the right prices', () => {
   const rs = FOUR.map(l => TD.parseLine(l));
   rs.forEach((r, i) => ok(r.ok, 'line ' + (i + 1) + ' failed: ' + r.error));
-  const exp = [['solid', 's600', 2, null, 4, 12345, 49380], ['solid', 's1000', 4, null, 2, 69140, 138280],
-    ['gully', 'r335x930', 1, 'without', 2, 4200, 8400], ['recess', 'r900x600', 1, null, 4, 17740, 70960]];
+  const exp = [['solid', 's600', 2, 'frp', 4, 12345, 49380], ['solid', 's1000', 4, 'frp', 2, 69140, 138280],
+    ['gully', 'r335x930', 1, 'without', 2, 4200, 8400], ['recess', 'r900x600', 1, 'frp', 4, 17740, 70960]];
   rs.forEach((r, i) => {
     const [prod, id, load, frame, qty, price, amt] = exp[i];
     eq(r.item.prod, prod); eq(r.item.id, id); eq(r.item.load, load); eq(r.item.frame, frame); eq(r.item.qty, qty);
@@ -123,7 +123,7 @@ await test('parser: load words, boundaries and 2.5 before 5 T', () => {
   const r2 = L('solid 1500x1500 d400 2'); eq(r2.item.id, 's1500'); eq(r2.item.qty, 2);
 });
 await test('parser: errors are plain sentences', () => {
-  eq(TD.parseLine('600x600 b125').error, 'Name the product: solid top, recess, gully, air & water tight, hinged or tank.');
+  eq(TD.parseLine('600x600 b125').error, 'Name the product: solid top, recess, gully, air & water tight, hinged, tank or chamber.');
   eq(TD.parseLine('solid top b125 qty 3').error, 'Add the size, for example 600x600 or 900 dia.');
 });
 await test('parser: circular, × and *, twin preference, gully out-to-out map', () => {
@@ -159,7 +159,7 @@ await test('price data is untouched (spot checks + null = on request)', () => {
 await test('wording, subject and intro', () => {
   eq(TD.defaultWording({ prod: 'solid', id: 's600', load: 2 }), '600 mm x 600 mm (24" x 24") clear opening');
   eq(TD.defaultWording({ prod: 'solid', id: 'c600', load: 2 }), '600 mm dia (24") clear opening');
-  eq(TD.defaultWording({ prod: 'solid', id: 's900t', load: 0 }), '900 mm x 900 mm (36" x 36") clear opening, 2 covers with single frame');
+  eq(TD.defaultWording({ prod: 'solid', id: 's900t', load: 0 }), '900 mm x 900 mm (36" x 36") clear opening, 2 covers with single MS frame');
   eq(TD.defaultWording({ prod: 'gully', id: 's600', load: 2, frame: 'with' }), '660mm X 660mm (out to out)');
   eq(TD.defaultWording({ prod: 'gully', id: 'c600', load: 2, frame: 'with' }), '660mm DIA (out to out)');
   eq(TD.defaultWording({ prod: 'gully', id: 's300', load: 1 }), '342mm X 342mm (out to out)');
@@ -194,10 +194,72 @@ await test('payment slabs: lines, totals and plain-language problems', () => {
   ok(TD.whatsappText(M).includes('PAYMENTS: 30 % ADVANCE WITH PO; 70 % BEFORE DISPATCH'));
 });
 
+await test('chambers: fully custom size, finish, load, frame and price', () => {
+  const r = TD.parseLine('chamber 1000x1000x600 two sided b125 price 45000 qty 2');
+  ok(r.ok, r.error); eq(r.item.prod, 'custom'); eq(r.item.finish, 'double'); eq(r.item.frame, 'ms'); eq(r.price, 45000); eq(r.item.qty, 2);
+  eq(TD.defaultWording(r.item), '1000 mm (L) x 1000 mm (W) x 600 mm (H), two-sided finish');
+  eq(TD.itemLoadPrint(r.item), 'B 125');
+  eq(TD.parseLine('chamber 1200x900x750 single side d400 rate 52,000 with frp frame').item.frame, 'frp');
+  eq(TD.parseLine('chamber 1000x1000 b125 price 4000').error, 'Add the chamber size as length x width x height in mm, for example 1000x1000x600.');
+  eq(TD.parseLine('chamber 1000x1000x600 b125').error, 'Add the chamber price per piece, for example price 45000.');
+  const nl = TD.parseLine('chamber 800x800x500 price 30000'); ok(nl.ok); eq(TD.itemLoadPrint(nl.item), '-');
+  const M = TD.buildModel([r.item], FIELDS, true);
+  eq(M.groups[0].title, '‘THERMODRAIN’ FRP CHAMBER WITH MS FRAME');
+  eq(M.groups[0].note, null);
+  ok(M.subject.startsWith('OFFER FOR THERMODRAIN FRP CHAMBER'), M.subject);
+});
+await test('frames on every product: FRP is list price; MS / without frame need a typed price', () => {
+  const a = TD.parseLine('solid 600x600 b125 qty 2');
+  eq(a.item.frame, 'frp'); eq(a.price, 12345);
+  const ms = TD.parseLine('solid 600x600 b125 ms frame price 15000 qty 2');
+  ok(ms.ok, ms.error); eq(ms.item.frame, 'ms'); eq(ms.price, 15000);
+  eq(TD.parseLine('solid 600x600 b125 without frame qty 1').error, 'Without frame has no list price for this cover. Add the price per piece, for example price 6500.');
+  const none = TD.parseLine('air water tight 600x600 b125 cover only price 9000');
+  ok(none.ok, none.error); eq(none.item.frame, 'none');
+  // twin rows are listed with an MS frame
+  const tw = { prod: 'solid', id: 's900t', load: 0, frame: null, qty: 1 };
+  eq(TD.normFrame('solid', null, 's900t'), 'ms'); eq(TD.unitPrice({ ...tw, frame: 'ms' }), 20725); eq(TD.isManual({ ...tw, frame: 'frp' }), true);
+  // the typed price never replaces a list price
+  eq(TD.parseLine('solid 600x600 b125 price 1 qty 1').price, 12345);
+  const M = TD.buildModel([a.item, ms.item, none.item], FIELDS, true);
+  eq(M.groups.map(g => g.title).join(' | '),
+    '‘THERMODRAIN’ FRP/GRP SOLID TOP MANHOLE COVER WITH FRAME | ‘THERMODRAIN’ FRP/GRP SOLID TOP MANHOLE COVER WITH MS FRAME | ‘THERMODRAIN’ FRP/GRP AIR & WATER TIGHT COVER WITHOUT FRAME');
+  ok(TD.itemKey(a.item) !== TD.itemKey(ms.item), 'different frames never merge');
+});
+await test('recess depth prints in the wording and keeps the list price', () => {
+  const r = TD.parseLine('recess 600x600 b125 depth 75 qty 2');
+  ok(r.ok, r.error); eq(r.item.depth, 75); eq(r.price, 16925);
+  eq(TD.defaultWording(r.item), '600 mm x 600 mm (24" x 24") clear opening, recess depth 75 mm');
+  eq(TD.parseLine('recess 600x600 b125 50 mm deep').item.depth, 50);
+  eq(TD.depthOf({ prod: 'solid', depth: 75 }), null);
+});
+await test('per-item discounts and the average discount', () => {
+  const items = [{ ...TD.parseLine('solid 600x600 b125 qty 4').item, disc: 10 }, { ...TD.parseLine('recess 900x600 5 ton qty 4').item, disc: 20 }];
+  const t = TD.totals(items, true);
+  near(t.sub, 49380 + 70960); near(t.disc, 4938 + 14192); eq(t.uniformPct, null);
+  near(t.avgPct, (4938 + 14192) / 120340 * 100);
+  const M = TD.buildModel(items, FIELDS, true);
+  eq(M.totalRows[1].label, 'Less Discount (avg. 15.90%)');
+  eq(TD.parseLine('solid 600x600 b125 qty 4 10% disc').item.disc, 10);
+  eq(TD.parseLine('solid 600x600 b125 qty 4 discount 12.5').item.disc, 12.5);
+  const same = items.map(i => ({ ...i, disc: 15 }));
+  eq(TD.buildModel(same, FIELDS, true).totalRows[1].label, 'Less Discount @15%');
+});
+await test('USD conversion uses the rate typed in, never a guessed one', () => {
+  const items = FOUR.map(l => TD.parseLine(l).item);
+  eq(TD.buildModel(items, FIELDS, true).usd, null);
+  const M = TD.buildModel(items, { ...FIELDS, usdRate: '88.5', usdShow: true }, true);
+  near(M.usd.grand, 315083.6 / 88.5); near(M.usd.gst, 48063.6 / 88.5);
+  const last = M.totalRows[M.totalRows.length - 1];
+  eq(last.label, 'GRAND TOTAL IN USD @ ₹88.5'); ok(!last.yellow);
+  eq(TD.usd2(3560.27), 'US$ 3,560.27');
+  ok(TD.whatsappText(M).includes('In USD @ ₹88.5: US$ 3,560.27 incl. GST'));
+});
+
 /* ---------------- Excel ---------------- */
 async function makeXlsx(name, lines, discount, gst, fields = FIELDS) {
   const items = []; addAll(items, lines);
-  const M = TD.buildModel(items, fields, discount, gst);
+  const M = discount === undefined ? TD.buildModel(items, fields, gst) : TD.buildModel(items, fields, discount, gst);
   const { wb, totalRowsAt, firstItemRow, lastItemRow, lastRow } = TD.buildWorkbook(ExcelJS, M, {});
   const file = path.join(OUT, name);
   await wb.xlsx.writeFile(file);
@@ -272,6 +334,25 @@ await test('Excel: CIF transport and 3 payment slabs print on separate lines wit
   ok(x.ws.getCell(pay, 5).alignment.wrapText);
   ok(x.ws.getRow(pay).height >= 50, 'payments row height ' + x.ws.getRow(pay).height);
 });
+await test('Excel: chambers, MS frame, depth, mixed discounts, USD row and address', async () => {
+  const lines = ['solid 600x600 b125 qty 4 10% disc', 'recess 600x600 b125 depth 75 qty 2 20% disc', 'chamber 1000x1000x600 two sided b125 price 45000 qty 2',
+    'solid 600x600 b125 ms frame price 15000 qty 2'];
+  const x = await makeXlsx('QTN_new.xlsx', lines, undefined, true, { ...FIELDS, address: 'Plot 12, Peenya Industrial Area, Phase 2', usdRate: '88.5', usdShow: true });
+  const ws = x.ws, at = x.totalRowsAt;
+  const find = txt => { let hit = null; ws.eachRow(row => row.eachCell(c => { if (!hit && c.value === txt) hit = c; })); return hit; };
+  ok(find('PLOT 12, PEENYA INDUSTRIAL AREA, PHASE 2'), 'address printed');
+  ok(find('‘THERMODRAIN’ FRP CHAMBER WITH MS FRAME'), 'chamber group');
+  ok(find('‘THERMODRAIN’ FRP/GRP SOLID TOP MANHOLE COVER WITH MS FRAME'), 'ms frame group');
+  ok(find('1000 mm (L) x 1000 mm (W) x 600 mm (H), two-sided finish'), 'chamber wording');
+  ok(find('600 mm x 600 mm (24" x 24") clear opening, recess depth 75 mm'), 'depth wording');
+  const disc = ws.getCell('H' + at.disc).value;
+  ok(/^H\d+\*10%\+H\d+\*20%$/.test(disc.formula), disc.formula);
+  near(disc.result, 4938 + 33850 * 0.2);
+  ok(/^Less Discount \(avg\. /.test(ws.getCell('E' + at.disc).value));
+  const usd = ws.getCell('H' + at.usd).value;
+  eq(usd.formula, 'ROUND(H' + at.grand + '/88.5,2)'); eq(ws.getCell('H' + at.usd).numFmt, '"$"#,##0.00');
+  eq(ws.getCell('A' + at.grand).fill.fgColor.argb, 'FFFFF2CC');
+});
 await test('Excel: GST off → last TOTAL is bold+yellow and term says 18% Extra', async () => {
   const x = await makeXlsx('QTN_gst_off.xlsx', FOUR, 0, false);
   const at = x.totalRowsAt; eq(Object.keys(at).join(','), 'total');
@@ -302,7 +383,7 @@ function convert(file, fmt, outdir) {
 }
 await test('9a. LibreOffice prints each generated file on exactly one A4 page', async () => {
   if (!SO) throw new Error('LibreOffice not installed: skipped');
-  for (const f of ['QTN_discount48.xlsx', 'QTN_all.xlsx', 'QTN_gst_off.xlsx', 'QTN_slabs.xlsx']) {
+  for (const f of ['QTN_discount48.xlsx', 'QTN_all.xlsx', 'QTN_gst_off.xlsx', 'QTN_slabs.xlsx', 'QTN_new.xlsx']) {
     convert(path.join(OUT, f), 'pdf', OUT);
     const info = execFileSync('pdfinfo', [path.join(OUT, f.replace('.xlsx', '.pdf'))]).toString();
     eq(info.match(/Pages:\s+(\d+)/)[1], '1', f + ' pages');
@@ -326,6 +407,20 @@ await test('9b. H-column formulas recalculate after a qty is edited', async () =
   const grand = fs.readFileSync(path.join(OUT, 'edited.csv'), 'utf8').split('\n').find(l => l.includes('GRAND TOTAL'));
   // new subtotal = 267020 + 6*12345 = 341090; after 48% = 177366.8; +18% = 209292.82
   ok(/209[,]?292\.82/.test(grand.replace(/"/g, '')), 'grand total recalculated: ' + grand);
+});
+
+await test('9c. mixed-discount and USD formulas recalculate in LibreOffice', async () => {
+  if (!SO) throw new Error('LibreOffice not installed: skipped');
+  const wb = new ExcelJS.Workbook(); await wb.xlsx.readFile(path.join(OUT, 'QTN_new.xlsx'));
+  const ws = wb.getWorksheet('Quotation');
+  ws.eachRow(row => row.eachCell(c => { if (c.value && c.value.formula) c.value = { formula: c.value.formula }; }));
+  const f = path.join(OUT, 'new_nocache.xlsx'); await wb.xlsx.writeFile(f);
+  convert(f, 'csv', OUT);
+  const csv = fs.readFileSync(path.join(OUT, 'new_nocache.csv'), 'utf8');
+  // gross 49380 + 33850 + 90000 + 30000 = 203230; disc 4938 + 6770 = 11708; base 191522; gst 34473.96; grand 225995.96; usd 2553.63
+  const val = lbl => (csv.split('\n').find(l => l.includes(lbl)) || '').replace(/"/g, '');
+  const num = lbl => +val(lbl).split(',').filter(Boolean).pop().replace(/[^\d.]/g, '');
+  near(num('Less Discount'), 11708); near(num('GRAND TOTAL (INCL'), 225995.96); near(num('IN USD'), 2553.63);
 });
 
 console.log(results.join('\n'));

@@ -51,9 +51,7 @@ const lastToast = page => page.locator('#toasts .toast').last().textContent();
 await test('UI 1: paste four lines + Enter → 4 items and correct totals', async () => {
   const { ctx, page } = await newPage();
   await typeLines(page, FOUR);
-  eq((await page.textContent('#quickAdd')).trim(), 'Add 4 items');
-  eq(await page.locator('#parseList li.ok').count(), 4);
-  ok((await page.textContent('#parseList')).includes('Solid Top MHC, 600 × 600 mm, B125 — 4 nos × ₹12,345 = ₹49,380'));
+  eq(await page.locator('#parseList li').count(), 0, 'nothing is checked while typing');
   await page.keyboard.press('Enter');
   eq(await page.locator('#sumItems .item').count(), 4);
   eq(await page.inputValue('#quick'), '');
@@ -125,7 +123,7 @@ await test('UI picker: gully flag, frame toggle, on-request loads disabled, step
   await page.click('[data-load="5"]');
   await page.click('[data-size="s900t"]');
   eq(await page.getAttribute('[data-load="0"]', 'aria-pressed'), 'true');
-  ok((await page.textContent('[data-size="s900t"]')).includes('2 covers, 1 frame'));
+  ok((await page.textContent('[data-size="s900t"]')).includes('2 covers, 1 MS frame'));
   eq((await page.textContent('#abPrice')).startsWith('₹20,725'), true);
   await page.click('#abPlus'); await page.click('#abPlus');
   eq(await page.textContent('#abAdd'), 'Add 3 to quote, ₹62,175');
@@ -158,7 +156,7 @@ await test('UI 8: download .xlsx (48% discount), filename, formulas, serial +1',
   await page.fill('#f_serial', '25');
   await page.fill('#f_qdate', '2026-09-24');
   eq(await page.textContent('#hdrRef'), 'THERMODRAIN/QTN/TP1-BGLR/025/2026-27');
-  await page.fill('#discount', '48');
+  await page.fill('#discount', '48'); await page.click('#discApply');
   ok((await page.textContent('#totals')).includes('Less discount @48%'));
   ok((await page.textContent('#ready')).startsWith('Ready.'));
   const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#btnDownload')]);
@@ -268,6 +266,109 @@ await test('UI: old saved terms (free-text transport/payments) are migrated', as
   await ctx.close();
 });
 
+await test('UI: lines are checked only on Add; red notes stay unchanged while typing', async () => {
+  const { ctx, page } = await newPage();
+  await page.focus('#quick'); await page.keyboard.type('solid');
+  eq(await page.locator('#parseList li').count(), 0, 'no red while typing');
+  await page.keyboard.press('Enter');
+  eq(await page.locator('#parseList li.err').count(), 1);
+  const before = await page.textContent('#parseList');
+  await page.keyboard.type(' 600x600 b12');
+  eq(await page.textContent('#parseList'), before, 'red note unchanged while editing');
+  eq(await page.locator('#parseList li.ok').count(), 0, 'never turns green while typing');
+  await page.keyboard.type('5 qty 2'); await page.keyboard.press('Enter');
+  eq(await page.locator('#parseList li').count(), 0);
+  eq(await page.locator('#sumItems .item').count(), 1);
+  // the Add button sits inside the text box
+  const tb = await page.locator('#quick').boundingBox(), bb = await page.locator('#quickAdd').boundingBox();
+  ok(bb.x >= tb.x && bb.x + bb.width <= tb.x + tb.width && bb.y >= tb.y && bb.y + bb.height <= tb.y + tb.height, 'Add inside the box');
+  await ctx.close();
+});
+
+await test('UI: custom chamber, MS frame with typed price, recess depth', async () => {
+  const { ctx, page } = await newPage();
+  await page.click('[data-prod="custom"]');
+  ok(await page.isVisible('#customWrap')); ok(await page.isHidden('#stdWrap'));
+  await page.fill('#cName', 'FRP Inspection Chamber');
+  await page.fill('#cL', '1200'); await page.fill('#cW', '900'); await page.fill('#cH', '750');
+  await page.click('[data-finish="double"]'); await page.click('[data-load="4"]');
+  eq(await page.getAttribute('[data-frame="ms"]', 'aria-pressed'), 'true', 'chambers default to MS frame');
+  ok(await page.isDisabled('#abAdd'), 'no price yet');
+  await page.fill('#abPriceIn', '52000');
+  eq(await page.textContent('#abAdd'), 'Add 1 to quote, ₹52,000');
+  await page.click('#abAdd');
+  const sum = await page.textContent('#sumItems');
+  ok(sum.includes('FRP Inspection Chamber, with MS frame') && sum.includes('1200 × 900 × 750 mm, two-sided finish, D400'), sum);
+  // solid with MS frame needs a price
+  await page.click('[data-prod="solid"]'); await page.click('[data-shape="Square"]'); await page.click('[data-size="s600"]'); await page.click('[data-load="2"]');
+  eq((await page.textContent('#abPrice')).startsWith('₹12,345'), true);
+  await page.click('[data-frame="ms"]');
+  ok(await page.isVisible('#abManual')); ok(await page.isDisabled('#abAdd'));
+  await page.fill('#abPriceIn', '15000'); await page.click('#abAdd');
+  // recess depth
+  await page.click('[data-prod="recess"]'); ok(await page.isVisible('#depthWrap'));
+  await page.click('#depthWrap [data-depth="75"]');
+  ok((await page.textContent('#abSpec')).includes('recess depth 75 mm'));
+  await page.click('#abAdd');
+  const M = await page.evaluate(() => window.__tdApp.model());
+  eq(M.groups.map(g => g.title).join(' | '), '‘THERMODRAIN’ FRP INSPECTION CHAMBER WITH MS FRAME | ‘THERMODRAIN’ FRP/GRP SOLID TOP MANHOLE COVER WITH MS FRAME | ‘THERMODRAIN’ FRP/GRP RECESS COVER WITH FRAME');
+  ok(M.groups[2].items[0].wording.endsWith('recess depth 75 mm'));
+  // manual price can be changed in the summary
+  await page.fill('#sumItems .item:nth-child(2) input[data-act=price]', '16000'); await page.press('#sumItems .item:nth-child(2) input[data-act=price]', 'Tab');
+  ok((await page.textContent('#sumItems .item:nth-child(2) .amt')).includes('₹16,000'));
+  eq(page.errors.length, 0, page.errors.join());
+  await ctx.close();
+});
+
+await test('UI: per-item discounts, average discount, apply to all; USD rate and USD row', async () => {
+  const { ctx, page } = await newPage();
+  await typeLines(page, ['solid 600x600 b125 qty 4', 'recess 900x600 5 ton qty 4']); await page.keyboard.press('Enter');
+  await page.fill('#sumItems .item:nth-child(1) input[data-act=disc]', '10');
+  await page.fill('#sumItems .item:nth-child(2) input[data-act=disc]', '20');
+  const tot = await page.textContent('#totals');
+  ok(tot.includes('Less discount, average 15.90%') && tot.includes('−₹19,130.00'), tot);
+  await page.fill('#discount', '12'); await page.click('#discApply');
+  eq(await page.inputValue('#sumItems .item:nth-child(2) input[data-act=disc]'), '12');
+  ok((await page.textContent('#totals')).includes('Less discount @12%'));
+  await page.fill('#f_usdRate', '88.5');
+  ok((await page.textContent('#usdLine')).includes('US$'), 'usd line');
+  ok((await page.textContent('#totals')).includes('In USD @ ₹88.5'));
+  await page.check('#usdShow');
+  await page.fill('#f_company', 'USD Co');
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#btnDownload')]);
+  const file = path.join(OUT, 'ui-usd.xlsx'); await dl.saveAs(file);
+  const wb = new ExcelJS.Workbook(); await wb.xlsx.readFile(file); const ws = wb.getWorksheet('Quotation');
+  let usdRow = null; ws.eachRow((row, rn) => { if (String(row.getCell(5).value).includes('IN USD')) usdRow = rn; });
+  ok(usdRow, 'USD row in Excel'); eq(ws.getCell('E' + usdRow).value, 'GRAND TOTAL IN USD @ ₹88.5');
+  await ctx.close();
+});
+
+await test('UI: saved customers (save, pick, delete, auto-save on download, persists)', async () => {
+  const { ctx, page } = await newPage();
+  await page.evaluate(() => localStorage.removeItem('td_customers'));
+  await page.reload(); await page.waitForFunction(() => !!window.__tdApp);
+  await page.fill('#f_company', 'Brigade Infra'); await page.fill('#f_address', 'No. 29, Brigade Road');
+  await page.fill('#f_city', 'Bengaluru'); await page.fill('#f_cityCode', 'BGLR'); await page.fill('#f_contact', 'Mr Rao');
+  await page.click('#custSave');
+  ok((await lastToast(page)).startsWith('Customer saved'));
+  await page.click('#btnNew');
+  eq(await page.inputValue('#f_company'), ''); eq(await page.inputValue('#f_address'), '');
+  await page.reload(); await page.waitForFunction(() => !!window.__tdApp);
+  await page.selectOption('#custPick', { label: 'Brigade Infra, Bengaluru' });
+  eq(await page.inputValue('#f_address'), 'No. 29, Brigade Road'); eq(await page.inputValue('#f_cityCode'), 'BGLR'); eq(await page.inputValue('#f_contact'), 'Mr Rao');
+  ok((await page.textContent('#hdrRef')).includes('TP1-BGLR'));
+  // auto-save on download
+  await typeLines(page, ['tank 600 qty 1']); await page.keyboard.press('Enter');
+  await page.fill('#f_company', 'Prestige Estates'); await page.fill('#f_city', 'Mysuru');
+  await Promise.all([page.waitForEvent('download'), page.click('#btnDownload')]);
+  const opts = await page.locator('#custPick option').allTextContents();
+  ok(opts.includes('Prestige Estates, Mysuru') && opts.includes('Brigade Infra, Bengaluru'), opts.join());
+  await page.selectOption('#custPick', { label: 'Brigade Infra, Bengaluru' });
+  await page.click('#custDel');
+  ok(!(await page.locator('#custPick option').allTextContents()).includes('Brigade Infra, Bengaluru'));
+  await ctx.close();
+});
+
 await test('UI 11a: 360 px wide, no horizontal scroll (empty, with items, picker on gully)', async () => {
   const { ctx, page } = await newPage({ viewport: { width: 360, height: 780 } });
   const sw = () => page.evaluate(() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth));
@@ -310,7 +411,7 @@ await test('UI: accessibility basics (labels, aria-pressed, focus ring)', async 
   const { ctx, page } = await newPage();
   const unlabeled = await page.evaluate(() => [...document.querySelectorAll('input,select,textarea')].filter(el => el.type !== 'hidden' && !el.labels?.length && !el.getAttribute('aria-label')).map(el => el.id || el.outerHTML.slice(0, 60)));
   eq(unlabeled.length, 0, unlabeled.join());
-  eq(await page.locator('#prodGrid button[aria-pressed]').count(), 6);
+  eq(await page.locator('#prodGrid button[aria-pressed]').count(), 7);
   await page.focus('[data-prod="aw"]'); await page.keyboard.press('Enter');
   eq(await page.getAttribute('[data-prod="aw"]', 'aria-pressed'), 'true');
   eq(await page.evaluate(() => document.activeElement.dataset.prod), 'aw', 'focus kept after re-render');
