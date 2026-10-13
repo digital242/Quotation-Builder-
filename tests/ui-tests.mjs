@@ -387,6 +387,36 @@ await test('UI: saved customers (save, pick, delete, auto-save on download, pers
   await ctx.close();
 });
 
+await test('UI: no stale typed price, serial stays consistent, twin frame wording', async () => {
+  const { ctx, page } = await newPage();
+  await page.click('[data-prod="solid"]'); await page.click('[data-shape="Square"]'); await page.click('[data-size="s600"]'); await page.click('[data-load="2"]');
+  await page.click('[data-frame="ms"]'); await page.fill('#abPriceIn', '15000');
+  eq(await page.textContent('#abAdd'), 'Add 1 to quote, ₹15,000');
+  await page.click('[data-size="s900"]');
+  eq(await page.inputValue('#abPriceIn'), '', 'price cleared after size change');
+  ok(await page.isDisabled('#abAdd'), 'cannot add without a fresh price');
+  await page.fill('#abPriceIn', '21000'); await page.click('[data-load="3"]');
+  eq(await page.inputValue('#abPriceIn'), '', 'price cleared after load change');
+  await page.fill('#abPriceIn', '22000'); await page.press('#abPriceIn', 'Enter');
+  eq(await page.locator('#sumItems .item').count(), 1, 'Enter in the price box adds the item');
+  // twin row with FRP frame: wording follows the frame
+  await page.click('[data-size="s900t"]');
+  eq(await page.getAttribute('[data-frame="ms"]', 'aria-pressed'), 'true', 'twin defaults to MS frame (list price)');
+  ok((await page.textContent('#abPrice')).startsWith('₹20,725'));
+  await page.click('[data-frame="frp"]'); await page.fill('#abPriceIn', '24000'); await page.click('#abAdd');
+  const M = await page.evaluate(() => window.__tdApp.model());
+  ok(M.groups.flatMap(g => g.items).some(x => x.wording.endsWith('2 covers with single FRP frame')), 'FRP twin wording');
+  // blank serial: reference and file name agree on 001
+  await page.fill('#f_company', 'Serial Co');
+  await page.click('#moreBox summary'); await page.fill('#f_serial', '');
+  ok((await page.textContent('#hdrRef')).includes('/001/'));
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#btnDownload')]);
+  eq(dl.suggestedFilename(), 'QTN_001_Serial_Co.xlsx');
+  eq(await page.inputValue('#f_serial'), '2');
+  eq(page.errors.length, 0, page.errors.join());
+  await ctx.close();
+});
+
 await test('UI 11a: 360 px wide, no horizontal scroll (empty, with items, picker on gully)', async () => {
   const { ctx, page } = await newPage({ viewport: { width: 360, height: 780 } });
   const sw = () => page.evaluate(() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth));

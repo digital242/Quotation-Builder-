@@ -19,5 +19,8 @@ npm test                         # core + Excel tests, then browser tests
 - `run-tests.mjs`: parser, prices, totals, reference number, Excel layout/formulas. If LibreOffice
   (`soffice`) and `pdfinfo` are installed it also checks the file prints on one A4 page and that the
   H-column formulas recalculate after a qty edit.
+- `fuzz-tests.mjs`: 60 random quotations (every product, frame, chamber, discounts, ₹ + GST / ₹ GST extra / US$ export).
+  Checks list prices against the table, totals against an independent calculation, every Excel formula result,
+  and (with LibreOffice) recalculation and one-page printing on a sample.
 - `ui-tests.mjs`: Playwright (Chromium) tests of the page: typing, picker, download, 360 px width,
   blocked localStorage, dark-mode device setting. The ExcelJS CDN is served locally in these tests.

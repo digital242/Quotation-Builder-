@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "scripts": {
-    "test": "node run-tests.mjs && node ui-tests.mjs"
+    "test": "node run-tests.mjs && node fuzz-tests.mjs && node ui-tests.mjs"
   },
   "keywords": [],
   "author": "",
