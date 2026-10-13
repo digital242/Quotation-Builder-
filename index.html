@@ -94,7 +94,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue)}
 .qa-box textarea::placeholder{color:#8794AD}
 .qa-box .qa-add{position:absolute;right:8px;bottom:8px;min-height:38px;padding:6px 18px}
 .form-grid.c-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
-#stdWrap>.field-label:first-child,#customWrap>.field-label:first-child{margin-top:16px}
 .depth-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .depth-row input{width:120px;border:1px solid var(--border);border-radius:var(--r-ctl);padding:8px 10px;min-height:40px}
 .frame-hint{margin:6px 0 0}
@@ -132,7 +131,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue)}
 
 /* Picker */
 .field-label{font-weight:700;font-size:13.5px;margin:20px 0 8px;display:block;color:var(--text)}
-.field-label:first-child{margin-top:0}
 .prod-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .prod{display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px;min-width:0}
 .prod svg{width:34px;height:34px;color:var(--blue)}
@@ -362,6 +360,12 @@ dialog.pv::backdrop{background:rgba(27,42,74,.55)}
       </div>
 
       <div id="customWrap" hidden>
+        <span class="field-label" id="lblKind">Custom product</span>
+        <div class="seg" id="kindSeg" role="group" aria-labelledby="lblKind">
+          <button type="button" data-kind="chamber" aria-pressed="true">Chamber</button>
+          <button type="button" data-kind="multi" aria-pressed="false">Multi-cover manhole cover</button>
+        </div>
+       <div id="chamberWrap">
         <span class="field-label">Chamber size and finish</span>
         <div class="form-grid c-grid">
           <div class="fld full"><label for="cName">Product name (prints on the quotation)</label><input id="cName" data-c="name" placeholder="FRP Chamber"></div>
@@ -374,6 +378,16 @@ dialog.pv::backdrop{background:rgba(27,42,74,.55)}
           <button type="button" data-finish="single" aria-pressed="true">Single-sided finish</button>
           <button type="button" data-finish="double" aria-pressed="false">Two-sided finish</button>
         </div>
+       </div>
+       <div id="multiWrap" hidden>
+        <span class="field-label">Multi-cover size</span>
+        <div class="form-grid c-grid">
+          <div class="fld full"><label for="mName">Product name (prints on the quotation)</label><input id="mName" data-m="name" placeholder="FRP/GRP Multiple Manhole Cover"></div>
+          <div class="fld"><label for="mL">Opening length, mm</label><input id="mL" data-m="l" type="number" min="1" inputmode="numeric"></div>
+          <div class="fld"><label for="mW">Opening width, mm</label><input id="mW" data-m="w" type="number" min="1" inputmode="numeric"></div>
+          <div class="fld"><label for="mN">Number of covers</label><input id="mN" data-m="covers" type="number" min="2" max="20" inputmode="numeric"></div>
+        </div>
+       </div>
       </div>
 
       <div id="depthWrap" hidden>
@@ -784,15 +798,20 @@ function unitPrice(it){
 function pctOf(v){ const n=parseFloat(v); return isNaN(n)?0:Math.max(0,Math.min(100,Math.round(n*100)/100)); }
 function depthOf(it){ const d=parseInt(it.depth,10); return it.prod==='recess' && d>0 ? d : null; }
 function finishText(it){ return it.finish==='double' ? 'two-sided finish' : 'single-sided finish'; }
-function customName(it){ return String(it.name||'').trim() || 'FRP Chamber'; }
+/* Custom products: kind 'chamber' (L x W x H, finish) or 'multi' (multi-cover manhole cover: L x W opening, number of covers). */
+function isMulti(it){ return it.prod==='custom' && it.kind==='multi'; }
+function coversOf(it){ const n=parseInt(it.covers,10); return n>=2 ? Math.min(n,20) : 2; }
+function customName(it){ return String(it.name||'').trim() || (isMulti(it) ? 'FRP/GRP Multiple Manhole Cover' : 'FRP Chamber'); }
+function multiFrameText(fr,n){ return fr==='none' ? n+' covers (without frame)' : n+' covers with single '+(fr==='frp'?'FRP':'MS')+' frame'; }
 function isLoadIdx(v){ return v!==null && v!==undefined && v!=='' && +v>=0 && +v<=5 && Number.isInteger(+v); }
 function customLoadIdx(it){ return isLoadIdx(it.load) ? +it.load : null; }
 function itemKey(it){
+  if(isMulti(it)) return ['multi',customName(it).toUpperCase(),normFrame('custom',it.frame),+it.l,+it.w,coversOf(it),customLoadIdx(it),unitPrice(it)].join('|');
   if(it.prod==='custom') return ['custom',customName(it).toUpperCase(),normFrame('custom',it.frame),+it.l,+it.w,+it.h,it.finish==='double'?'d':'s',customLoadIdx(it),String(it.loadText||'').trim().toUpperCase(),unitPrice(it)].join('|');
   return [it.prod, normFrame(it.prod,it.frame,it.id), it.id, it.prod==='tank'?0:it.load, depthOf(it)||'', isManual(it)?unitPrice(it):''].join('|');
 }
 function groupKey(it){
-  if(it.prod==='custom') return 'custom|'+customName(it).toUpperCase()+'|'+normFrame('custom',it.frame);
+  if(it.prod==='custom') return 'custom|'+customName(it).toUpperCase()+'|'+normFrame('custom',it.frame)+'|'+(isMulti(it)?'multi':'chamber');
   return it.prod+'|'+normFrame(it.prod,it.frame,it.id);
 }
 function groupTitle(key){
@@ -801,7 +820,7 @@ function groupTitle(key){
   if(prod==='custom') return '‘THERMODRAIN’ '+a+' '+FRAME_TITLE[b];
   return GROUP_TITLE[prod].replace(' WITH FRAME',' '+FRAME_TITLE[a]);
 }
-function groupNote(key){ const [prod,a]=key.split('|'); return prod==='gully' ? GROUP_NOTE['gully|'+a] : (GROUP_NOTE[prod]||null); }
+function groupNote(key){ const [prod,a,,kind]=key.split('|'); if(prod==='custom') return kind==='multi' ? NOTE_MHC : null; return prod==='gully' ? GROUP_NOTE['gully|'+a] : (GROUP_NOTE[prod]||null); }
 function flagFor(it){
   if(it.prod==='tank'||it.prod==='custom'||isManual(it)) return null;
   if(it.prod==='gully') return FLAGS['gully|'+it.id+'|'+it.load+'|'+normFrame('gully',it.frame)] || null;
@@ -825,6 +844,7 @@ function sizeText(prod,id,load){
   return s;
 }
 function itemSizeText(it){
+  if(isMulti(it)) return (+it.l||0)+' × '+(+it.w||0)+' mm, '+coversOf(it)+' covers';
   if(it.prod==='custom') return (+it.l||0)+' × '+(+it.w||0)+' × '+(+it.h||0)+' mm';
   return sizeText(it.prod,it.id,it.load)+(it.prod==='gully'?' out to out':'');
 }
@@ -847,7 +867,7 @@ function productLabel(it){
 /* "600 × 600 mm, B125, 4-wheeler" */
 function specText(it){
   const parts=[itemSizeText(it)];
-  if(it.prod==='custom'){ parts.push(finishText(it)); const i=customLoadIdx(it); parts.push(i!==null ? LOAD_CODE[i]+', '+LOADS[i].name : itemLoadText(it)); }
+  if(it.prod==='custom'){ if(!isMulti(it)) parts.push(finishText(it)); const i=customLoadIdx(it); parts.push(i!==null ? LOAD_CODE[i]+', '+LOADS[i].name : itemLoadText(it)); }
   else if(it.prod==='tank') parts.push('500 kg');
   else parts.push(LOAD_CODE[it.load], LOADS[it.load].name);
   const d=depthOf(it); if(d) parts.push('recess depth '+d+' mm');
@@ -855,6 +875,7 @@ function specText(it){
 }
 /* Default size wording printed in the Excel quotation. */
 function defaultWording(it){
+  if(isMulti(it)) return (+it.l||0)+' mm x '+(+it.w||0)+' mm clear opening, '+multiFrameText(normFrame('custom',it.frame),coversOf(it));
   if(it.prod==='custom') return (+it.l||0)+' mm (L) x '+(+it.w||0)+' mm (W) x '+(+it.h||0)+' mm (H), '+finishText(it);
   const f=findRow(it.prod,it.id); if(!f) return '';
   if(it.prod==='gully'){
@@ -907,7 +928,9 @@ function refNo(f){
 }
 
 /* ---- Parser: one free-text line -> item or plain-language error ---- */
+const MULTI_RE=/\bmulti(?:ple)?\s*-?\s*(?:manhole\s*|mh\s*)?covers?\b|\bmulti\s*-?\s*cover/;
 const PRODUCT_RES=[
+  ['custom', MULTI_RE],
   ['custom', /chamb[ea]r/],
   ['gully', /gulle?y|water\s*gul|grating\s*cover/],
   ['aw', /\bair\b|airtight|water\s*-?\s*tight|\ba\s*&\s*w\b|\ba\s*\/\s*w\b/],
@@ -964,7 +987,10 @@ function parseLine(raw){
   // 1. Product
   let prod=null;
   for(const [k,re] of PRODUCT_RES){ if(re.test(s)){ prod=k; break; } }
-  if(!prod) return fail('Name the product: solid top, recess, gully, air & water tight, hinged, tank or chamber.');
+  if(!prod) return fail('Name the product: solid top, recess, gully, air & water tight, hinged, tank, chamber or multiple cover.');
+  const multi = prod==='custom' && MULTI_RE.test(s);
+  let covers=null;
+  if(multi){ const mc=take(/(?<![\d.x])(\d{1,2})\s*(?:nos?\.?\s*)?(?:covers?|parts?|lids?)\b(?!\s*x)/); if(mc) covers=+mc[1]; }
   const hasMS=/\bm\.?\s*s\.?\s*frame|\bmild\s*steel|\bms\b/.test(s);
   const hasWithout=/\bwithout\s*-?\s*frame|\bw\s*\/\s*o\s*frame|\bcover\s*only|\bno\s*frame/.test(s);
   const hasWith=/\bwith\s*-?\s*(?:frp\s*)?frame|\bfrp\s*frame/.test(s);
@@ -1003,7 +1029,7 @@ function parseLine(raw){
 
   // 7. Size
   let size=null, dims3=null;
-  if(prod==='custom' && (m=take(/(?<![\d.])(\d{2,5})\s*(?:mm)?\s*x\s*(\d{2,5})\s*(?:mm)?\s*x\s*(\d{2,5})(?![\d.])\s*(?:mm)?/))) dims3=[+m[1],+m[2],+m[3]];
+  if(prod==='custom' && !multi && (m=take(/(?<![\d.])(\d{2,5})\s*(?:mm)?\s*x\s*(\d{2,5})\s*(?:mm)?\s*x\s*(\d{2,5})(?![\d.])\s*(?:mm)?/))) dims3=[+m[1],+m[2],+m[3]];
   else if((m=take(/(?<![\d.])(\d{3,4})\s*(?:mm)?\s*x\s*(\d{3,4})(?![\d.])\s*(?:mm)?/))) size={a:+m[1],b:+m[2]};
   else if((m=take(/(?:(?:dia|ø|round)\.?\s*)?(?<![\d.])(\d{3,4})(?![\d.])\s*(?:mm)?\s*(?:diameter|dia\.?|ø|round)?/))) size={n:+m[1]};
 
@@ -1011,6 +1037,15 @@ function parseLine(raw){
   if(qty===null){ m=s.match(/(?<![\d.])(\d{1,4})(?![\d.])/); qty = m ? +m[1] : 1; }
   if(!(qty>=1)) return fail('Quantity must be at least 1.');
 
+  if(multi){
+    const d2 = dims3 ? null : size && size.a ? [size.a,size.b] : null;
+    if(!d2) return fail('Add the multi-cover size as length x width in mm, for example 1800x900.');
+    if(!(price>0)) return fail('Add the multi-cover price per piece, for example price 60000.');
+    if(load===null) return fail('Add the load class: 2.5 T, 5 T, B125, C250, D400 or E600.');
+    if(covers!==null && (covers<2||covers>20)) return fail('A multi-cover manhole cover has 2 to 20 covers.');
+    const item={prod,kind:'multi',name:'FRP/GRP Multiple Manhole Cover',l:d2[0],w:d2[1],covers:covers||2,frame:frame||'ms',load,price,qty,disc};
+    return {ok:true,text,item,price,amount:price*qty};
+  }
   if(prod==='custom'){
     if(!dims3) return fail('Add the chamber size as length x width x height in mm, for example 1000x1000x600.');
     if(!(price>0)) return fail('Add the chamber price per piece, for example price 45000.');
@@ -1036,7 +1071,7 @@ function parseLine(raw){
 function describeParsed(r){
   const it=r.item;
   return productLabel(it)+', '+itemSizeText(it)+', '+itemLoadText(it)
-    +(it.prod==='custom'?', '+finishText(it):'')+(depthOf(it)?', depth '+depthOf(it)+' mm':'')
+    +(it.prod==='custom'&&!isMulti(it)?', '+finishText(it):'')+(depthOf(it)?', depth '+depthOf(it)+' mm':'')
     +' — '+it.qty+' nos × '+rupees(r.price)+' = '+rupees(r.amount)+(it.disc>0?', less '+it.disc+'%':'');
 }
 
@@ -1071,7 +1106,7 @@ function moneyShort(n,cur){ return cur==='USD' ? usd2(n) : rupees(n); }
 /* ---- Quotation model shared by Excel, preview and WhatsApp ---- */
 function joinNames(arr){ return arr.length<=1 ? (arr[0]||'') : arr.slice(0,-1).join(', ')+' & '+arr[arr.length-1]; }
 function autoSubject(items,site){
-  const names=[]; for(const it of items){ const n=it.prod==='custom' ? customName(it).toUpperCase().replace(/^FRP\s+/,'') : PRINT_NAME[it.prod]; if(!names.includes(n)) names.push(n); }
+  const names=[]; for(const it of items){ const n=it.prod==='custom' ? customName(it).toUpperCase().replace(/^FRP(\/GRP)?\s+/,'') : PRINT_NAME[it.prod]; if(!names.includes(n)) names.push(n); }
   if(!names.length) names.push('MANHOLE COVER');
   return ('OFFER FOR THERMODRAIN FRP '+joinNames(names)+(String(site||'').trim()?' FOR '+String(site).trim():'')).toUpperCase();
 }
@@ -1308,7 +1343,7 @@ function buildWorkbook(ExcelJS,M,logos){
 }
 
 return {LOADS,DATA,FLAGS,PRODUCTS,SHAPES,LOAD_CODE,LOAD_PRINT,PRINT_NAME,GROUP_TITLE,GROUP_NOTE,GULLY_OTO,DEFAULT_FIELDS,CUSTOMER_KEYS,COLW,NUMFMT,
-  findRow,allowedFrames,serialOf,lcFirst,isLoadIdx,isTwin,isTwinItem,priceOf,normFrame,listFrame,isManual,listPrice,unitPrice,pctOf,depthOf,itemDisc,itemSizeText,itemLoadText,itemLoadPrint,finishText,customName,groupTitle,FRAME_LABEL,usdRateOf,fmtUS,usd2,pctLabel,modeOf,linePrice,money,moneyShort,NUMFMT_USD,itemKey,groupKey,flagFor,gullyOTO,inchesOf,sizeText,loadText,loadPrint,productLabel,specText,
+  findRow,isMulti,coversOf,allowedFrames,serialOf,lcFirst,isLoadIdx,isTwin,isTwinItem,priceOf,normFrame,listFrame,isManual,listPrice,unitPrice,pctOf,depthOf,itemDisc,itemSizeText,itemLoadText,itemLoadPrint,finishText,customName,groupTitle,FRAME_LABEL,usdRateOf,fmtUS,usd2,pctLabel,modeOf,linePrice,money,moneyShort,NUMFMT_USD,itemKey,groupKey,flagFor,gullyOTO,inchesOf,sizeText,loadText,loadPrint,productLabel,specText,
   defaultWording,wordingOf,TRANSPORT_MODES,PAY_PRESETS,transportText,paySlabsOf,slabTotal,slabProblem,paymentLines,fmtIN,rupees,rupees2,round2,ddmmyyyy,fyOf,pad3,todayISO,refNo,parseLine,describeParsed,matchSize,
   totals,autoSubject,introText,buildModel,whatsappText,wrapLines,rowHeightFor,buildWorkbook,stripB64,
   logos:{tp:LOGO_TP,td:LOGO_TD}};
@@ -1343,7 +1378,7 @@ const ICON={
   custom:svgI('<path d="M6 14 L14 6 H34 V26 L26 34 H6 Z"/><path d="M6 14 H26 V34 M26 14 L34 6"/><path d="M10 20h12M10 25h12" stroke-dasharray="2 2"/>'),
   empty:svgI('<rect x="9" y="7" width="22" height="28" rx="2"/><path d="M15 7V5h10v2"/><path d="M14 16h12M14 21h12M14 26h7"/>')
 };
-const PROD_DESC={solid:'Manhole cover with frame',hinged:'Opens 180° on FRP hinge',tank:'500 kg, hinge + locking',aw:'Gasketed cover with frame',recess:'Tray top for tiles or paving',gully:'Slotted, with or without frame',custom:'Chambers and special sizes, your price'};
+const PROD_DESC={solid:'Manhole cover with frame',hinged:'Opens 180° on FRP hinge',tank:'500 kg, hinge + locking',aw:'Gasketed cover with frame',recess:'Tray top for tiles or paving',gully:'Slotted, with or without frame',custom:'Chambers, multi-cover covers, your price'};
 
 /* ---------- State ---------- */
 const today=()=>T.todayISO();
@@ -1354,7 +1389,12 @@ function normItem(it,dfltDisc){
   const qty=parseInt(it.qty,10); if(!(qty>=1)) return null;
   const disc = it.disc===undefined||it.disc===null||it.disc==='' ? (dfltDisc>0?T.pctOf(dfltDisc):0) : T.pctOf(it.disc);
   let n;
-  if(it.prod==='custom'){
+  if(it.prod==='custom' && it.kind==='multi'){
+    const l=parseInt(it.l,10), w=parseInt(it.w,10), c=parseInt(it.covers,10);
+    if(!(l>0&&w>0&&c>=2&&c<=20) || !T.isLoadIdx(it.load)) return null;
+    n={prod:'custom',kind:'multi',name:String(it.name||'').trim()||'FRP/GRP Multiple Manhole Cover',l,w,covers:c,
+       frame:T.normFrame('custom',it.frame),load:+it.load,price:+it.price||null,qty,disc,wording:it.wording||null};
+  } else if(it.prod==='custom'){
     const l=parseInt(it.l,10), w=parseInt(it.w,10), h=parseInt(it.h,10);
     if(!(l>0&&w>0&&h>0)) return null;
     n={prod:'custom',name:String(it.name||'').trim()||'FRP Chamber',l,w,h,finish:it.finish==='double'?'double':'single',
@@ -1376,7 +1416,10 @@ const Q={
   draft:typeof saved.draft==='string'?saved.draft:''
 };
 const P=Object.assign({prod:'solid',shape:'Square',id:'s600',frame:'frp',load:2,qty:1,depth:'',price:'',
-  c:{name:'FRP Chamber',l:1000,w:1000,h:600,finish:'single',load:2}},saved.picker||{});
+  c:{name:'FRP Chamber',l:1000,w:1000,h:600,finish:'single',load:2},ck:'chamber',
+  m:{name:'FRP/GRP Multiple Manhole Cover',l:1800,w:900,covers:2,load:2}},saved.picker||{});
+P.ck = P.ck==='multi' ? 'multi' : 'chamber';
+P.m=Object.assign({name:'FRP/GRP Multiple Manhole Cover',l:1800,w:900,covers:2,load:2},P.m||{});
 if(!T.DATA[P.prod] && P.prod!=='custom') P.prod='solid';
 P.c=Object.assign({name:'FRP Chamber',l:1000,w:1000,h:600,finish:'single',load:2},P.c||{});
 const savedF=store.get(K_FIELDS)||{};
@@ -1394,7 +1437,7 @@ if(!Array.isArray(savedF.paySlabs) || !savedF.paySlabs.length){
   F.paySlabs = !old ? [{pct:100,stage:'ADVANCE'}].map(x=>Object.assign({},x)) : m ? [{pct:+m[1],stage:m[2]}] : [{pct:100,stage:old}];
 }
 delete F.transport; delete F.payments;
-const ITEM_KEYS=['prod','id','load','frame','qty','wording','disc','depth','price','name','l','w','h','finish','loadText'];
+const ITEM_KEYS=['prod','kind','covers','id','load','frame','qty','wording','disc','depth','price','name','l','w','h','finish','loadText'];
 function saveQuote(){ store.set(K_QUOTE,{items:Q.items.map(it=>{ const o={}; for(const k of ITEM_KEYS) if(it[k]!==undefined) o[k]=it[k]; return o; }),mode:Q.mode,draft:$('#quick').value,picker:P}); }
 function saveFields(){ store.set(K_FIELDS,F); }
 
@@ -1455,11 +1498,12 @@ $('#quickAdd').addEventListener('click',addFromText);
 
 /* ---------- Visual picker ---------- */
 const PICK_PRODUCTS=[...T.PRODUCTS,'custom'];
-const PROD_NAME=k=>k==='custom'?'Custom / chamber':T.DATA[k].name;
+const PROD_NAME=k=>k==='custom'?'Custom: chamber / multi-cover':T.DATA[k].name;
 function rowsOf(prod,shape){ return prod==='custom'?[]:(T.DATA[prod].shapes[shape]||[]); }
 function shapesOf(prod){ return T.SHAPES.filter(s=>rowsOf(prod,s).length); }
 function pItem(load){
   const L = load===undefined ? P.load : load;
+  if(P.prod==='custom' && P.ck==='multi') return {prod:'custom',kind:'multi',name:P.m.name,l:P.m.l,w:P.m.w,covers:P.m.covers,frame:P.frame,load:P.m.load>=0?P.m.load:null,price:P.price,qty:P.qty};
   if(P.prod==='custom') return {prod:'custom',name:P.c.name,l:P.c.l,w:P.c.w,h:P.c.h,finish:P.c.finish,frame:P.frame,load:P.c.load>=0?P.c.load:null,loadText:'',price:P.price,qty:P.qty};
   return {prod:P.prod,id:P.id,load:P.prod==='tank'?0:L,frame:P.frame,qty:P.qty,depth:P.prod==='recess'?P.depth:null,price:P.price};
 }
@@ -1507,6 +1551,16 @@ function sizeSub(row){
 function coverSVG(){
   const blue='#2C4474', yellow='#FECB00', tint='#FFFFFF';
   const cx=48, cy=48; let s='';
+  if(P.prod==='custom' && P.ck==='multi'){
+    const L=+P.m.l||1, W=+P.m.w||1, n=Math.max(2,Math.min(20,parseInt(P.m.covers,10)||2)), sc=80/Math.max(L,W);
+    const w=Math.max(24,L*sc), h=Math.max(16,W*sc), x=cx-w/2, y=cy-h/2;
+    if(P.frame!=='none') s+='<rect x="'+(x-4)+'" y="'+(y-4)+'" width="'+(w+8)+'" height="'+(h+8)+'" rx="2" fill="none" stroke="'+(P.frame==='ms'?'#5B6A86':blue)+'" stroke-width="'+(P.frame==='ms'?2.4:1.2)+'"/>';
+    s+='<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" fill="'+tint+'" stroke="'+blue+'" stroke-width="1.8"/>';
+    for(let i=1;i<n;i++){ const xx=x+w*i/n; s+='<line x1="'+xx+'" y1="'+y+'" x2="'+xx+'" y2="'+(y+h)+'" stroke="'+blue+'" stroke-width="1.4"/>'; }
+    const rr=Math.max(2,Math.min(w/n,h)*0.22);
+    for(let i=0;i<n;i++) s+='<circle cx="'+(x+w*(i+0.5)/n)+'" cy="'+cy+'" r="'+rr+'" fill="none" stroke="'+yellow+'" stroke-width="1.8"/>';
+    return s;
+  }
   if(P.prod==='custom'){
     const m=Math.max(+P.c.l||1,+P.c.w||1,+P.c.h||1), sc=56/m;
     const w=Math.max(14,(+P.c.l||0)*sc), d=Math.max(8,(+P.c.w||0)*sc*0.5), h=Math.max(10,(+P.c.h||0)*sc);
@@ -1549,7 +1603,7 @@ function coverSVG(){
   }
   return s;
 }
-function focusKey(){ const a=document.activeElement; if(!a||!a.dataset) return null; for(const k of ['prod','shape','size','frame','load','finish','depth']) if(a.dataset[k]!==undefined) return '[data-'+k+'="'+a.dataset[k]+'"]'; return null; }
+function focusKey(){ const a=document.activeElement; if(!a||!a.dataset) return null; for(const k of ['prod','shape','size','frame','load','finish','depth','kind']) if(a.dataset[k]!==undefined) return '[data-'+k+'="'+a.dataset[k]+'"]'; return null; }
 function renderPicker(){
   const fk=focusKey();
   normalisePicker();
@@ -1565,6 +1619,9 @@ function renderPicker(){
     }).join('');
   } else {
     for(const el of document.querySelectorAll('#customWrap [data-c]')) if(document.activeElement!==el) el.value=P.c[el.dataset.c]??'';
+    for(const el of document.querySelectorAll('#customWrap [data-m]')) if(document.activeElement!==el) el.value=P.m[el.dataset.m]??'';
+    $('#kindSeg').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.kind===P.ck)));
+    $('#chamberWrap').hidden = P.ck==='multi'; $('#multiWrap').hidden = P.ck!=='multi';
     $('#finishSeg').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.finish===P.c.finish)));
   }
   if(P.prod==='recess' && document.activeElement!==$('#pDepth')) $('#pDepth').value=P.depth||'';
@@ -1572,7 +1629,7 @@ function renderPicker(){
   const lf = isC ? null : P.prod==='gully' ? null : T.listFrame({prod:P.prod,id:P.id});
   $('#frameSeg').innerHTML=frameOptions().map(fr=>'<button type="button" data-frame="'+fr+'" aria-pressed="'+(fr===P.frame)+'">'+esc(T.FRAME_LABEL[fr])+(lf&&fr===lf?' <span class="cnt">list price</span>':'')+'</button>').join('');
   const manual=T.isManual(pItem());
-  $('#frameHint').textContent = isC ? 'Chambers are priced by hand. Enter the price per piece below.'
+  $('#frameHint').textContent = isC ? (P.ck==='multi'?'Multi-cover manhole covers are priced by hand. MS frame is standard. Enter the price per piece below.':'Chambers are priced by hand. Enter the price per piece below.')
     : P.prod==='gully' ? 'Both water gully options are in the price list.'
     : manual ? 'The price list has no '+T.lcFirst(T.FRAME_LABEL[P.frame])+' price for this cover. Enter the price per piece below.'
     : lf==='ms' ? 'This twin-cover size is listed with an MS frame.' : 'List prices include the FRP frame.';
@@ -1583,8 +1640,9 @@ function renderPicker(){
     lg.innerHTML='<button type="button" class="load" data-load="0" aria-pressed="true"><b>500 kg</b><small>Fixed rating</small></button>';
   } else if(isC){
     lg.classList.remove('single');
-    lg.innerHTML=T.LOADS.map((L,i)=>'<button type="button" class="load" data-load="'+i+'" aria-pressed="'+(i===P.c.load)+'"><b>'+esc(L.cap)+'</b><small>'+esc(L.name)+'</small></button>').join('')
-      +'<button type="button" class="load" data-load="-1" aria-pressed="'+(!(P.c.load>=0))+'"><b>None</b><small>Not stated</small></button>';
+    const cl = P.ck==='multi' ? P.m.load : P.c.load;
+    lg.innerHTML=T.LOADS.map((L,i)=>'<button type="button" class="load" data-load="'+i+'" aria-pressed="'+(i===cl)+'"><b>'+esc(L.cap)+'</b><small>'+esc(L.name)+'</small></button>').join('')
+      +(P.ck==='multi' ? '' : '<button type="button" class="load" data-load="-1" aria-pressed="'+(!(cl>=0))+'"><b>None</b><small>Not stated</small></button>');
   } else {
     lg.classList.remove('single');
     lg.innerHTML=T.LOADS.map((L,i)=>{
@@ -1609,10 +1667,11 @@ function renderPicker(){
   const flag=price===null?null:T.flagFor(item), fe=$('#abFlag');
   fe.hidden=!flag; fe.textContent=flag||'';
   $('#abQty').value=P.qty;
-  const cBad = isC && !(+P.c.l>0 && +P.c.w>0 && +P.c.h>0);
+  const mN=parseInt(P.m.covers,10);
+  const cBad = isC && (P.ck==='multi' ? !(+P.m.l>0 && +P.m.w>0 && mN>=2 && mN<=20 && P.m.load>=0) : !(+P.c.l>0 && +P.c.w>0 && +P.c.h>0));
   const btn=$('#abAdd');
   btn.disabled = price===null || cBad;
-  btn.textContent = cBad ? 'Enter L, W and H' : price===null ? (manual?'Enter the price to add':'Price on request') : 'Add '+P.qty+' to quote, '+T.rupees(price*P.qty);
+  btn.textContent = cBad ? (P.ck==='multi' ? (!(mN>=2&&mN<=20)?'Covers: 2 to 20':!(P.m.load>=0)?'Pick the load class':'Enter length and width') : 'Enter L, W and H') : price===null ? (manual?'Enter the price to add':'Price on request') : 'Add '+P.qty+' to quote, '+T.rupees(price*P.qty);
   if(fk){ const el=document.querySelector('#step1 '+fk); if(el && !el.disabled) el.focus(); }
   saveQuote();
 }
@@ -1627,8 +1686,9 @@ $('#sizeGrid').addEventListener('click',e=>{ const b=e.target.closest('[data-siz
 $('#frameSeg').addEventListener('click',e=>{ const b=e.target.closest('[data-frame]'); if(!b||b.dataset.frame===P.frame) return; P.frame=b.dataset.frame; if(P.prod!=='custom') P.price=''; renderPicker(); });
 $('#finishSeg').addEventListener('click',e=>{ const b=e.target.closest('[data-finish]'); if(!b) return; P.c.finish=b.dataset.finish; renderPicker(); });
 $('#loadGrid').addEventListener('click',e=>{ const b=e.target.closest('[data-load]'); if(!b||b.disabled||P.prod==='tank') return;
-  if(P.prod==='custom') P.c.load=+b.dataset.load; else { if(+b.dataset.load!==P.load) P.price=''; P.load=+b.dataset.load; } renderPicker(); });
-$('#customWrap').addEventListener('input',e=>{ const k=e.target.dataset.c; if(!k) return; P.c[k]= k==='name' ? e.target.value : e.target.value; renderPicker(); });
+  if(P.prod==='custom') (P.ck==='multi'?P.m:P.c).load=+b.dataset.load; else { if(+b.dataset.load!==P.load) P.price=''; P.load=+b.dataset.load; } renderPicker(); });
+$('#customWrap').addEventListener('input',e=>{ const k=e.target.dataset.c, km=e.target.dataset.m; if(k) P.c[k]=e.target.value; else if(km) P.m[km]=e.target.value; else return; renderPicker(); });
+$('#kindSeg').addEventListener('click',e=>{ const b=e.target.closest('[data-kind]'); if(!b||b.dataset.kind===P.ck) return; P.ck=b.dataset.kind; P.price=''; P.frame='ms'; renderPicker(); });
 $('#pDepth').addEventListener('input',e=>{ P.depth=e.target.value; renderPicker(); });
 $('#depthWrap').addEventListener('click',e=>{ const b=e.target.closest('[data-depth]'); if(!b) return; P.depth=b.dataset.depth; $('#pDepth').value=P.depth; renderPicker(); });
 $('#abPriceIn').addEventListener('input',e=>{ P.price=e.target.value; renderPicker(); });
@@ -1640,9 +1700,11 @@ $('#abAdd').addEventListener('click',()=>{
   const raw=pItem();
   if(T.unitPrice(raw)===null){ toast(T.isManual(raw)?'Enter the price per piece first.':'This load class is on request for this size, so it can\'t be priced here.',true); if(T.isManual(raw)) $('#abPriceIn').focus(); return; }
   const it=addItem(raw);
-  if(!it){ toast('Enter the chamber length, width and height first.',true); return; }
-  saveQuote(); renderSummary(); flashSummary();
-  toast(T.productLabel(it)+', '+T.itemSizeText(it)+': '+plural(P.qty,'no.','nos')+' added.');
+  if(!it){ toast(P.ck==='multi'&&P.prod==='custom'?'Enter the length, width, number of covers (2 to 20) and load class first.':'Enter the chamber length, width and height first.',true); return; }
+  const added=P.qty;
+  P.qty=1; // ready for the next product
+  saveQuote(); renderSummary(); renderPicker(); flashSummary();
+  toast(T.productLabel(it)+', '+T.itemSizeText(it)+': '+plural(added,'no.','nos')+' added.');
 });
 
 /* ---------- Customer form ---------- */

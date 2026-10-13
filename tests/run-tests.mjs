@@ -123,7 +123,7 @@ await test('parser: load words, boundaries and 2.5 before 5 T', () => {
   const r2 = L('solid 1500x1500 d400 2'); eq(r2.item.id, 's1500'); eq(r2.item.qty, 2);
 });
 await test('parser: errors are plain sentences', () => {
-  eq(TD.parseLine('600x600 b125').error, 'Name the product: solid top, recess, gully, air & water tight, hinged, tank or chamber.');
+  eq(TD.parseLine('600x600 b125').error, 'Name the product: solid top, recess, gully, air & water tight, hinged, tank, chamber or multiple cover.');
   eq(TD.parseLine('solid top b125 qty 3').error, 'Add the size, for example 600x600 or 900 dia.');
 });
 await test('parser: circular, × and *, twin preference, gully out-to-out map', () => {
@@ -272,6 +272,26 @@ await test('GST and USD never mix: ₹ + GST, ₹ GST extra, or US$ export witho
   eq(TD.usd2(3560.27), 'US$ 3,560.27');
   const N = TD.buildModel(items, { ...FIELDS, usdRate: '88.5' }, 'nogst');
   eq(N.cur, 'INR'); eq(N.terms[0][1], '18% Extra'); near(N.totals.grand, 267020);
+});
+
+await test('multi-cover manhole covers are fully custom (size, covers, frame, load, price)', () => {
+  const r = TD.parseLine('multiple manhole cover 1800x900 3 covers b125 price 60000 qty 2');
+  ok(r.ok, r.error); eq(r.item.kind, 'multi'); eq(r.item.covers, 3); eq(r.item.frame, 'ms'); eq(r.price, 60000); eq(r.item.qty, 2);
+  eq(TD.defaultWording(r.item), '1800 mm x 900 mm clear opening, 3 covers with single MS frame');
+  eq(TD.itemLoadPrint(r.item), 'B 125');
+  eq(TD.parseLine('multi cover 1800x900 d400 price 90000').item.covers, 2, 'two covers by default');
+  eq(TD.parseLine('multiple cover 1800x900 b125').error, 'Add the multi-cover price per piece, for example price 60000.');
+  eq(TD.parseLine('multiple cover 1800x900 price 9000').error, 'Add the load class: 2.5 T, 5 T, B125, C250, D400 or E600.');
+  eq(TD.parseLine('multiple cover b125 price 9000').error, 'Add the multi-cover size as length x width in mm, for example 1800x900.');
+  eq(TD.parseLine('multiple cover 1800x900 25 covers b125 price 9000').error, 'A multi-cover manhole cover has 2 to 20 covers.');
+  const f = TD.parseLine('multiple cover 2400x900 4 covers c250 frp frame price 70000 2 nos');
+  ok(f.ok, f.error); eq(f.item.frame, 'frp'); eq(f.item.qty, 2); eq(f.item.covers, 4);
+  eq(TD.defaultWording(f.item), '2400 mm x 900 mm clear opening, 4 covers with single FRP frame');
+  const M = TD.buildModel([r.item, f.item, TD.parseLine('chamber 1000x1000x600 b125 price 45000').item], FIELDS, true);
+  eq(M.groups.map(g => g.title).join(' | '), '‘THERMODRAIN’ FRP/GRP MULTIPLE MANHOLE COVER WITH MS FRAME | ‘THERMODRAIN’ FRP/GRP MULTIPLE MANHOLE COVER WITH FRAME | ‘THERMODRAIN’ FRP CHAMBER WITH MS FRAME');
+  eq(M.groups[0].note, 'THERMODRAIN manhole covers are load tested as per BS EN 124 or IS 1726.'); eq(M.groups[2].note, null);
+  ok(M.subject.includes('MULTIPLE MANHOLE COVER') && M.subject.includes('CHAMBER'), M.subject);
+  ok(TD.itemKey(r.item) !== TD.itemKey({ ...r.item, covers: 4 }), 'different cover counts never merge');
 });
 
 /* ---------------- Excel ---------------- */

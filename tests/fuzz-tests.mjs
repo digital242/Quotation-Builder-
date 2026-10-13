@@ -28,6 +28,11 @@ const fail = (q, msg) => failures.push(`quote ${q}: ${msg}`);
 const near = (a, b) => Math.abs(a - b) <= 0.011;
 
 function randomItem() {
+  if (rnd() < 0.08) {
+    return { prod: 'custom', kind: 'multi', name: 'FRP/GRP Multiple Manhole Cover', l: 1200 + Math.floor(rnd() * 2400), w: 600 + Math.floor(rnd() * 900),
+      covers: 2 + Math.floor(rnd() * 5), frame: pick(['ms', 'ms', 'frp', 'none']), load: Math.floor(rnd() * 6),
+      price: Math.round(20000 + rnd() * 150000), qty: 1 + Math.floor(rnd() * 10), disc: pick([0, 5, 10]) };
+  }
   if (rnd() < 0.12) {
     return { prod: 'custom', name: pick(['FRP Chamber', 'FRP Inspection Chamber', 'GRP Valve Chamber']),
       l: 300 + Math.floor(rnd() * 1500), w: 300 + Math.floor(rnd() * 1500), h: 200 + Math.floor(rnd() * 1200),

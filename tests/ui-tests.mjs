@@ -128,9 +128,12 @@ await test('UI picker: gully flag, frame toggle, on-request loads disabled, step
   eq((await page.textContent('#abPrice')).startsWith('₹20,725'), true);
   await page.click('#abPlus'); await page.click('#abPlus');
   eq(await page.textContent('#abAdd'), 'Add 3 to quote, ₹62,175');
-  await page.click('#abAdd'); await page.click('#abAdd');
+  await page.click('#abAdd');
+  eq(await page.inputValue('#abQty'), '1', 'quantity resets to 1 after adding');
+  eq(await page.textContent('#abAdd'), 'Add 1 to quote, ₹20,725');
+  await page.click('#abAdd');
   eq(await page.locator('#sumItems .item').count(), 1);
-  eq(await page.inputValue('#sumItems input[data-act=qty]'), '6');
+  eq(await page.inputValue('#sumItems input[data-act=qty]'), '4', 'same item merges: 3 + 1');
   // tank shows single 500 kg button
   await page.click('[data-prod="tank"]');
   eq(await page.locator('#loadGrid button').count(), 1);
@@ -417,6 +420,32 @@ await test('UI: no stale typed price, serial stays consistent, twin frame wordin
   const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#btnDownload')]);
   eq(dl.suggestedFilename(), 'QTN_001_Serial_Co.xlsx');
   eq(await page.inputValue('#f_serial'), '2');
+  eq(page.errors.length, 0, page.errors.join());
+  await ctx.close();
+});
+
+await test('UI: custom multi-cover manhole cover from the picker', async () => {
+  const { ctx, page } = await newPage();
+  await page.click('[data-prod="custom"]');
+  await page.click('[data-kind="multi"]');
+  ok(await page.isVisible('#multiWrap')); ok(await page.isHidden('#chamberWrap'));
+  eq(await page.getAttribute('[data-frame="ms"]', 'aria-pressed'), 'true', 'MS frame standard');
+  eq(await page.locator('#loadGrid [data-load="-1"]').count(), 0, 'load class required for a manhole cover');
+  await page.fill('#mL', '2400'); await page.fill('#mW', '900'); await page.fill('#mN', '25');
+  eq(await page.textContent('#abAdd'), 'Covers: 2 to 20');
+  await page.fill('#mN', '4'); await page.click('[data-load="3"]');
+  ok(await page.isDisabled('#abAdd'), 'needs a price');
+  await page.fill('#abPriceIn', '70000');
+  eq(await page.textContent('#abAdd'), 'Add 1 to quote, ₹70,000');
+  ok((await page.textContent('#abSpec')).includes('2400 × 900 mm, 4 covers, C250'));
+  await page.click('#abAdd');
+  const M = await page.evaluate(() => window.__tdApp.model());
+  eq(M.groups[0].title, '‘THERMODRAIN’ FRP/GRP MULTIPLE MANHOLE COVER WITH MS FRAME');
+  eq(M.groups[0].items[0].wording, '2400 mm x 900 mm clear opening, 4 covers with single MS frame');
+  // switching back to chamber keeps the chamber fields
+  await page.click('[data-kind="chamber"]'); ok(await page.isVisible('#chamberWrap'));
+  await page.reload(); await page.waitForFunction(() => !!window.__tdApp);
+  eq(await page.locator('#sumItems .item').count(), 1, 'multi-cover item survives a reload');
   eq(page.errors.length, 0, page.errors.join());
   await ctx.close();
 });
