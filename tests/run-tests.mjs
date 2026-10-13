@@ -245,15 +245,26 @@ await test('per-item discounts and the average discount', () => {
   const same = items.map(i => ({ ...i, disc: 15 }));
   eq(TD.buildModel(same, FIELDS, true).totalRows[1].label, 'Less Discount @15%');
 });
-await test('USD conversion uses the rate typed in, never a guessed one', () => {
+await test('GST and USD never mix: ₹ + GST, ₹ GST extra, or US$ export without GST', () => {
   const items = FOUR.map(l => TD.parseLine(l).item);
-  eq(TD.buildModel(items, FIELDS, true).usd, null);
-  const M = TD.buildModel(items, { ...FIELDS, usdRate: '88.5', usdShow: true }, true);
-  near(M.usd.grand, 315083.6 / 88.5); near(M.usd.gst, 48063.6 / 88.5);
-  const last = M.totalRows[M.totalRows.length - 1];
-  eq(last.label, 'GRAND TOTAL IN USD @ ₹88.5'); ok(!last.yellow);
+  const G = TD.buildModel(items, { ...FIELDS, usdRate: '88.5' }, 'gst');
+  eq(G.cur, 'INR'); ok(!G.totalRows.some(r => /US\$|USD/.test(r.label)), 'no USD in a GST quotation');
+  ok(!TD.whatsappText(G).includes('US$'), 'no USD in the GST WhatsApp text');
+  near(G.totals.grand, 315083.6);
+  const U = TD.buildModel(items, { ...FIELDS, usdRate: '88.5' }, 'usd');
+  eq(U.cur, 'USD'); eq(U.totals.gst, 0); eq(U.totals.gstOn, false);
+  eq(U.groups.map(g => g.items.map(i => i.price).join('/')).join(' | '), '139.49/781.24 | 47.46 | 200.45');
+  near(U.totals.sub, 3017.16); near(U.totals.grand, 3017.16);
+  ok(!U.totalRows.some(r => /GST/.test(r.label)), 'no GST rows in an export quotation');
+  eq(U.totalRows[U.totalRows.length - 1].label, 'TOTAL (US$)');
+  eq(U.priceHdr, 'PRICE /PC (US$)'); eq(U.totalHdr, 'TOTAL PRICE (US$)');
+  eq(U.terms[0][1], 'Not applicable (export order, prices in US$)');
+  const wa = TD.whatsappText(U);
+  ok(wa.includes('*Total in US$ (export, no GST): US$ 3,017.16*') && !wa.includes('₹'), wa);
+  eq(TD.buildModel(items, FIELDS, 'usd').usdMissing, true);
   eq(TD.usd2(3560.27), 'US$ 3,560.27');
-  ok(TD.whatsappText(M).includes('In USD @ ₹88.5: US$ 3,560.27 incl. GST'));
+  const N = TD.buildModel(items, { ...FIELDS, usdRate: '88.5' }, 'nogst');
+  eq(N.cur, 'INR'); eq(N.terms[0][1], '18% Extra'); near(N.totals.grand, 267020);
 });
 
 /* ---------------- Excel ---------------- */
@@ -337,7 +348,7 @@ await test('Excel: CIF transport and 3 payment slabs print on separate lines wit
 await test('Excel: chambers, MS frame, depth, mixed discounts, USD row and address', async () => {
   const lines = ['solid 600x600 b125 qty 4 10% disc', 'recess 600x600 b125 depth 75 qty 2 20% disc', 'chamber 1000x1000x600 two sided b125 price 45000 qty 2',
     'solid 600x600 b125 ms frame price 15000 qty 2'];
-  const x = await makeXlsx('QTN_new.xlsx', lines, undefined, true, { ...FIELDS, address: 'Plot 12, Peenya Industrial Area, Phase 2', usdRate: '88.5', usdShow: true });
+  const x = await makeXlsx('QTN_new.xlsx', lines, undefined, true, { ...FIELDS, address: 'Plot 12, Peenya Industrial Area, Phase 2', usdRate: '88.5' });
   const ws = x.ws, at = x.totalRowsAt;
   const find = txt => { let hit = null; ws.eachRow(row => row.eachCell(c => { if (!hit && c.value === txt) hit = c; })); return hit; };
   ok(find('PLOT 12, PEENYA INDUSTRIAL AREA, PHASE 2'), 'address printed');
@@ -349,9 +360,20 @@ await test('Excel: chambers, MS frame, depth, mixed discounts, USD row and addre
   ok(/^H\d+\*10%\+H\d+\*20%$/.test(disc.formula), disc.formula);
   near(disc.result, 4938 + 33850 * 0.2);
   ok(/^Less Discount \(avg\. /.test(ws.getCell('E' + at.disc).value));
-  const usd = ws.getCell('H' + at.usd).value;
-  eq(usd.formula, 'ROUND(H' + at.grand + '/88.5,2)'); eq(ws.getCell('H' + at.usd).numFmt, '"$"#,##0.00');
   eq(ws.getCell('A' + at.grand).fill.fgColor.argb, 'FFFFF2CC');
+  eq(at.usd, undefined, 'no USD row on a GST quotation');
+});
+await test('Excel: US$ export quotation has US$ prices, no GST rows, and says GST not applicable', async () => {
+  const x = await makeXlsx('QTN_usd.xlsx', [...FOUR, 'chamber 1000x1000x600 two sided b125 price 45000 qty 2'], undefined, 'usd', { ...FIELDS, usdRate: '88.5' });
+  const ws = x.ws, at = x.totalRowsAt;
+  const find = txt => { let hit = null; ws.eachRow(row => row.eachCell(c => { if (!hit && c.value === txt) hit = c; })); return hit; };
+  ok(find('PRICE /PC (US$)') && find('TOTAL PRICE (US$)'), 'US$ headers');
+  eq(Object.keys(at).join(','), 'total');
+  eq(ws.getCell('E' + at.total).value, 'TOTAL (US$)'); ok(ws.getCell('E' + at.total).font.bold);
+  near(ws.getCell('H' + at.total).value.result, 3017.16 + 508.47 * 2);
+  eq(ws.getCell('G' + (x.firstItemRow + 2)).numFmt, '#,##0.00');
+  ok(find(': Not applicable (export order, prices in US$)'), 'GST term');
+  let gstRows = 0; ws.eachRow(row => { if (/GST @|INCL\. 18% GST/.test(String(row.getCell(5).value))) gstRows++; }); eq(gstRows, 0);
 });
 await test('Excel: GST off → last TOTAL is bold+yellow and term says 18% Extra', async () => {
   const x = await makeXlsx('QTN_gst_off.xlsx', FOUR, 0, false);
@@ -383,7 +405,7 @@ function convert(file, fmt, outdir) {
 }
 await test('9a. LibreOffice prints each generated file on exactly one A4 page', async () => {
   if (!SO) throw new Error('LibreOffice not installed: skipped');
-  for (const f of ['QTN_discount48.xlsx', 'QTN_all.xlsx', 'QTN_gst_off.xlsx', 'QTN_slabs.xlsx', 'QTN_new.xlsx']) {
+  for (const f of ['QTN_discount48.xlsx', 'QTN_all.xlsx', 'QTN_gst_off.xlsx', 'QTN_slabs.xlsx', 'QTN_new.xlsx', 'QTN_usd.xlsx']) {
     convert(path.join(OUT, f), 'pdf', OUT);
     const info = execFileSync('pdfinfo', [path.join(OUT, f.replace('.xlsx', '.pdf'))]).toString();
     eq(info.match(/Pages:\s+(\d+)/)[1], '1', f + ' pages');
@@ -409,7 +431,7 @@ await test('9b. H-column formulas recalculate after a qty is edited', async () =
   ok(/209[,]?292\.82/.test(grand.replace(/"/g, '')), 'grand total recalculated: ' + grand);
 });
 
-await test('9c. mixed-discount and USD formulas recalculate in LibreOffice', async () => {
+await test('9c. mixed-discount formulas recalculate in LibreOffice', async () => {
   if (!SO) throw new Error('LibreOffice not installed: skipped');
   const wb = new ExcelJS.Workbook(); await wb.xlsx.readFile(path.join(OUT, 'QTN_new.xlsx'));
   const ws = wb.getWorksheet('Quotation');
@@ -420,7 +442,7 @@ await test('9c. mixed-discount and USD formulas recalculate in LibreOffice', asy
   // gross 49380 + 33850 + 90000 + 30000 = 203230; disc 4938 + 6770 = 11708; base 191522; gst 34473.96; grand 225995.96; usd 2553.63
   const val = lbl => (csv.split('\n').find(l => l.includes(lbl)) || '').replace(/"/g, '');
   const num = lbl => +val(lbl).split(',').filter(Boolean).pop().replace(/[^\d.]/g, '');
-  near(num('Less Discount'), 11708); near(num('GRAND TOTAL (INCL'), 225995.96); near(num('IN USD'), 2553.63);
+  near(num('Less Discount'), 11708); near(num('GRAND TOTAL (INCL'), 225995.96);
 });
 
 console.log(results.join('\n'));

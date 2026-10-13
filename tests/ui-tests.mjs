@@ -15,6 +15,7 @@ const URL_ = 'file://' + INDEX;
 
 let pass = 0, fail = 0; const results = [];
 async function test(name, fn) {
+  if (process.env.UI_TRACE) console.error('… ' + name);
   try { await fn(); pass++; results.push('PASS  ' + name); }
   catch (e) { fail++; results.push('FAIL  ' + name + '\n      ' + String(e && e.stack || e).split('\n').slice(0,3).join(' ')); }
 }
@@ -320,7 +321,7 @@ await test('UI: custom chamber, MS frame with typed price, recess depth', async 
   await ctx.close();
 });
 
-await test('UI: per-item discounts, average discount, apply to all; USD rate and USD row', async () => {
+await test('UI: per-item discounts, average discount, apply to all; US$ export mode has no GST', async () => {
   const { ctx, page } = await newPage();
   await typeLines(page, ['solid 600x600 b125 qty 4', 'recess 900x600 5 ton qty 4']); await page.keyboard.press('Enter');
   await page.fill('#sumItems .item:nth-child(1) input[data-act=disc]', '10');
@@ -330,16 +331,33 @@ await test('UI: per-item discounts, average discount, apply to all; USD rate and
   await page.fill('#discount', '12'); await page.click('#discApply');
   eq(await page.inputValue('#sumItems .item:nth-child(2) input[data-act=disc]'), '12');
   ok((await page.textContent('#totals')).includes('Less discount @12%'));
-  await page.fill('#f_usdRate', '88.5');
-  ok((await page.textContent('#usdLine')).includes('US$'), 'usd line');
-  ok((await page.textContent('#totals')).includes('In USD @ ₹88.5'));
-  await page.check('#usdShow');
+  // GST mode: no USD anywhere, rate box hidden
+  ok(await page.isHidden('#rateFld'));
+  for (const sel of ['#sumItems', '#totals', '#grandVal']) ok(!(await page.textContent(sel)).includes('US$'), 'no US$ amounts in GST mode: ' + sel);
+  // US$ export: no GST, rate required
+  await page.click('[data-mode="usd"]');
+  eq(await page.getAttribute('[data-mode="usd"]', 'aria-pressed'), 'true');
+  ok(await page.isVisible('#rateFld'));
+  eq(await page.textContent('#grandVal'), 'US$ —');
   await page.fill('#f_company', 'USD Co');
+  ok((await page.textContent('#ready')).includes('exchange rate'));
+  await page.click('#btnDownload');
+  eq(await page.evaluate(() => document.activeElement.id), 'f_usdRate');
+  await page.fill('#f_usdRate', '88.5');
+  const tot2 = await page.textContent('#totals');
+  ok(!tot2.includes('GST') && tot2.includes('US$'), tot2);
+  eq(await page.textContent('#grandLabel'), 'Total in US$, export, no GST');
+  ok((await page.textContent('#sumItems')).includes('= US$ 139.49'));
   const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#btnDownload')]);
   const file = path.join(OUT, 'ui-usd.xlsx'); await dl.saveAs(file);
   const wb = new ExcelJS.Workbook(); await wb.xlsx.readFile(file); const ws = wb.getWorksheet('Quotation');
-  let usdRow = null; ws.eachRow((row, rn) => { if (String(row.getCell(5).value).includes('IN USD')) usdRow = rn; });
-  ok(usdRow, 'USD row in Excel'); eq(ws.getCell('E' + usdRow).value, 'GRAND TOTAL IN USD @ ₹88.5');
+  const all = []; ws.eachRow(row => row.eachCell(c => all.push(String(c.value && c.value.formula ? '' : c.value))));
+  ok(all.includes('PRICE /PC (US$)') && all.includes('TOTAL (US$)'), 'US$ quotation');
+  ok(!all.some(v => /ADD : GST|INCL\. 18% GST/.test(v)), 'no GST rows');
+  // back to GST: USD disappears again
+  await page.click('[data-mode="gst"]');
+  ok((await page.textContent('#totals')).includes('Add GST @18%')); ok(!(await page.textContent('#totals')).includes('US$'));
+  ok(await page.isHidden('#rateFld'));
   await ctx.close();
 });
 
