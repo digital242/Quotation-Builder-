@@ -52,7 +52,7 @@ const lastToast = page => page.locator('#toasts .toast').last().textContent();
 await test('UI 1: paste four lines + Enter → 4 items and correct totals', async () => {
   const { ctx, page } = await newPage();
   await typeLines(page, FOUR);
-  eq(await page.locator('#parseList li').count(), 0, 'nothing is checked while typing');
+  eq(await page.locator('#lineCheck li.ready').count(), 4, 'all four lines show green before adding');
   await page.keyboard.press('Enter');
   eq(await page.locator('#sumItems .item').count(), 4);
   eq(await page.inputValue('#quick'), '');
@@ -76,7 +76,7 @@ await test('UI 2-4: valid lines added, invalid lines stay with plain errors', as
   eq(await page.locator('#sumItems .item').count(), 1);
   ok((await page.textContent('#sumItems')).includes('₹83,085'));
   eq(await page.inputValue('#quick'), 'solid 777x777 b125 qty 1\nrecess 600x600 e600 qty 1');
-  const errs = await page.locator('#parseList li.err .msg').allTextContents();
+  const errs = await page.locator('#lineCheck li.blocked .lc-text').allTextContents();
   ok(errs[0].includes('777 × 777 is not in the Solid Top MHC price list.'), errs[0]);
   ok(errs[1].includes("E600 is on request for this size, so it can't be priced here."), errs[1]);
   eq(await lastToast(page), '1 item added. 2 lines still need fixing.');
@@ -270,19 +270,31 @@ await test('UI: old saved terms (free-text transport/payments) are migrated', as
   await ctx.close();
 });
 
-await test('UI: lines are checked only on Add; red notes stay unchanged while typing', async () => {
+await test('UI: live checklist (grey while missing, green when every detail is filled)', async () => {
   const { ctx, page } = await newPage();
   await page.focus('#quick'); await page.keyboard.type('solid');
-  eq(await page.locator('#parseList li').count(), 0, 'no red while typing');
+  const chips = async () => (await page.locator('#lineCheck .chip').evaluateAll(els => els.map(e => (e.classList.contains('done') ? '+' : '-') + e.textContent.replace(/, (filled|missing)$/, ''))));
+  eq((await chips()).join(' '), '+✓Product -Size -Load class -Qty');
+  eq(await page.locator('#lineCheck li.pending').count(), 1, 'grey, not red, while details are missing');
+  eq(await page.locator('#lineCheck li.blocked, #lineCheck li.ready').count(), 0);
+  ok((await page.textContent('#lineCheck .lc-text')).includes('Still needed: size, load class, qty.'));
+  await page.keyboard.type(' top 600x600 b125');
+  eq((await chips()).join(' '), '+✓Product +✓Size +✓Load class -Qty');
+  eq(await page.locator('#lineCheck li.ready').count(), 0, 'not green until qty is given');
+  await page.keyboard.type(' qty 4');
+  eq(await page.locator('#lineCheck li.ready').count(), 1, 'green once every detail is filled');
+  ok((await page.textContent('#lineCheck .lc-text')).includes('4 nos × ₹12,345 = ₹49,380'));
+  // chamber needs a price; second line shows its own checklist
+  await page.keyboard.press('Shift+Enter'); await page.keyboard.type('chamber 1000x1000x600 two sided B125 qty 2');
+  const rows = page.locator('#lineCheck li');
+  eq(await rows.count(), 2);
+  ok((await rows.nth(1).textContent()).includes('Still needed: price.'));
+  await page.keyboard.type(' price 45000');
+  eq(await page.locator('#lineCheck li.ready').count(), 2);
+  eq((await page.textContent('#quickAdd')).trim(), 'Add 2');
   await page.keyboard.press('Enter');
-  eq(await page.locator('#parseList li.err').count(), 1);
-  const before = await page.textContent('#parseList');
-  await page.keyboard.type(' 600x600 b12');
-  eq(await page.textContent('#parseList'), before, 'red note unchanged while editing');
-  eq(await page.locator('#parseList li.ok').count(), 0, 'never turns green while typing');
-  await page.keyboard.type('5 qty 2'); await page.keyboard.press('Enter');
-  eq(await page.locator('#parseList li').count(), 0);
-  eq(await page.locator('#sumItems .item').count(), 1);
+  eq(await page.locator('#sumItems .item').count(), 2);
+  eq(await page.locator('#lineCheck li').count(), 0, 'checklist clears once lines are added');
   // the Add button sits inside the text box
   const tb = await page.locator('#quick').boundingBox(), bb = await page.locator('#quickAdd').boundingBox();
   ok(bb.x >= tb.x && bb.x + bb.width <= tb.x + tb.width && bb.y >= tb.y && bb.y + bb.height <= tb.y + tb.height, 'Add inside the box');

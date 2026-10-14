@@ -317,6 +317,21 @@ await test('fuel station A&W covers: every price, model and weight from the PETR
   eq(TD.parseLine('air water tight 600 b125').item.prod, 'aw', 'ordinary A&W covers unchanged');
 });
 
+await test('live checklist: missing details listed, green only when complete and priceable', () => {
+  const st = l => TD.checkLine(l).state;
+  eq(st(''), 'empty'); eq(st('solid'), 'pending'); eq(st('solid top 600x600 B125'), 'pending');
+  eq(TD.checkLine('solid top 600x600 B125').text, 'Still needed: qty.');
+  eq(st('solid top 600x600 B125 qty 4'), 'ready');
+  eq(st('water gully 395x990 5 ton qty 2'), 'ready'); eq(st('tank 600 qty 3'), 'ready');
+  eq(TD.checkLine('chamber 1000x1000x600 two sided B125 qty 2').text, 'Still needed: price.');
+  eq(st('chamber 1000x1000x600 two sided B125 price 45000 qty 2'), 'ready');
+  eq(TD.checkLine('solid 600x600 b125 without frame qty 2').text, 'Still needed: price.');
+  eq(TD.checkLine('multiple cover 1800x900 3 covers b125 qty 2').text, 'Still needed: price.');
+  eq(st('fuel 900 dia d400 qty 2'), 'ready');
+  const b = TD.checkLine('solid 777x777 b125 qty 1'); eq(b.state, 'blocked'); eq(b.text, '777 × 777 is not in the Solid Top MHC price list.');
+  eq(TD.checkLine('solid b125 qty 4').parts.find(p => p.key === 'size').done, false, 'B125 is not mistaken for a size');
+});
+
 /* ---------------- Excel ---------------- */
 async function makeXlsx(name, lines, discount, gst, fields = FIELDS) {
   const items = []; addAll(items, lines);

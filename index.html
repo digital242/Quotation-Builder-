@@ -129,6 +129,24 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue)}
 .totals .avg{color:var(--muted);font-size:12.5px;margin-top:4px}
 .totals .avg span:last-child{font:600 12.5px/1.3 var(--f-ui)}
 
+.line-check{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:6px}
+.lc{display:flex;gap:9px;align-items:flex-start;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:#F8FAFD;font-size:13px}
+.lc .dot{flex:none;width:10px;height:10px;border-radius:50%;margin-top:5px;background:#B8C3D8}
+.lc.ready{background:#E9F6EF;border-color:#A9D8BF}
+.lc.ready .dot{background:var(--green);box-shadow:0 0 0 3px rgba(31,122,85,.18)}
+.lc.blocked{background:#FFF7E0;border-color:#F2D58A}
+.lc.blocked .dot{background:#C98A00}
+.lc-body{min-width:0;display:flex;flex-direction:column;gap:5px}
+.lc-line{color:var(--text);font-weight:600;word-break:break-word}
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:2px 9px 2px 5px;border-radius:999px;border:1px solid #CBD5E6;background:#fff;color:var(--muted);font-size:12px;font-weight:600;line-height:1.5}
+.chip .tick{width:14px;height:14px;border-radius:50%;border:1.5px dashed #B8C3D8;display:inline-flex;align-items:center;justify-content:center;font-size:10px;line-height:1}
+.chip.done{border-color:#A9D8BF;color:var(--green);background:#fff}
+.chip.done .tick{border:0;background:var(--green);color:#fff}
+.lc-text{color:var(--muted);word-break:break-word}
+.lc.ready .lc-text{color:#155C40;font-weight:600}
+.lc.blocked .lc-text{color:#7A5400;font-weight:600}
+
 /* Picker */
 .field-label{font-weight:700;font-size:13.5px;margin:20px 0 8px;display:block;color:var(--text)}
 .prod-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
@@ -338,12 +356,12 @@ dialog.pv::backdrop{background:rgba(27,42,74,.55)}
       <div class="card-h"><span class="stepnum" aria-hidden="true">1</span><h2 id="s1h">Add products</h2></div>
 
       <label class="qa-label" for="quick">Type what the customer asked for</label>
-      <p class="qa-hint" id="quickHint">One item per line. Press Enter to add, Shift+Enter for a new line. Lines are checked when you add them.</p>
+      <p class="qa-hint" id="quickHint">One item per line. Press Enter to add, Shift+Enter for a new line. The checklist turns green when a line has every detail.</p>
       <div class="qa-box">
         <textarea id="quick" rows="3" aria-describedby="quickHint" autocomplete="off" spellcheck="false" placeholder="solid top 600x600 B125 qty 4&#10;water gully 395x990 5 ton qty 2&#10;chamber 1000x1000x600 two sided B125 price 45000 qty 2"></textarea>
         <button type="button" class="btn btn-primary qa-add" id="quickAdd">Add</button>
       </div>
-      <ul class="parse-list" id="parseList" aria-live="polite"></ul>
+      <ul class="line-check" id="lineCheck" aria-live="polite"></ul>
 
       <div class="divider" role="separator">or pick</div>
 
@@ -1107,6 +1125,33 @@ function parseLine(raw){
   const p=unitPrice(item);
   return {ok:true,text,item,price:p,amount:p*qty};
 }
+/* Live checklist for one typed line: which details are present, and whether it can be added.
+   Returns {parts:[{key,label,done}], state:'empty'|'pending'|'ready'|'blocked', text}. */
+function checkLine(raw){
+  const text=String(raw||'').trim();
+  if(!text) return {parts:[],state:'empty',text:''};
+  const s=' '+text.toLowerCase().replace(/[×*]/g,'x').replace(/\s+/g,' ')+' ';
+  let prod=null; for(const [k,re] of PRODUCT_RES){ if(re.test(s)){ prod=k; break; } }
+  const multi = prod==='custom' && MULTI_RE.test(s);
+  const chamber = prod==='custom' && !multi;
+  const hasPrice=/(?:\bprice|\brate|\brs\.?|₹|\binr|@)\s*[:=]?\s*\d/.test(s);
+  const hasQty=/\b(?:qty|qnty|qnt|quantity)\b\.?\s*[:=\-]?\s*\d|(?<![\d.])\d{1,5}\s*(?:nos|pcs|pieces|units)\b|\b(?:nos|no)\b\.?\s*[:=\-]?\s*\d/.test(s);
+  const hasLoad = prod==='tank' || LOAD_RES.some(([,re])=>re.test(s));
+  const hasSize = chamber ? /(?<![\d.])\d{2,5}\s*(?:mm)?\s*x\s*\d{2,5}\s*(?:mm)?\s*x\s*\d{2,5}/.test(s)
+    : multi ? /(?<![\d.])\d{3,4}\s*(?:mm)?\s*x\s*\d{3,4}/.test(s)
+    : /(?<![\d.])\d{3,4}(?![\d.])/.test(s.replace(/\b(?:qty|qnty|qnt|quantity|nos?|pcs)\b\.?\s*[:=\-]?\s*\d+/g,' ').replace(/\d+\s*(?:nos|pcs|pieces|units)\b/g,' ').replace(/(?:\bprice|\brate|\brs\.?|₹|\binr|@)\s*[:=]?\s*[\d,]+/g,' ').replace(/\b[bcde]\s*-?\s*\d{3}\b/g,' '));
+  const r=parseLine(text);
+  // a typed price is needed for custom items and for frames without a list price
+  const needPrice = prod==='custom' || (r.ok && isManual(r.item)) || (!r.ok && /no list price/.test(r.error));
+  const parts=[{key:'product',label:'Product',done:!!prod},{key:'size',label:chamber?'Size L × W × H':multi?'Size L × W':'Size',done:hasSize}];
+  if(!chamber) parts.push({key:'load',label:'Load class',done:hasLoad});
+  parts.push({key:'qty',label:'Qty',done:hasQty});
+  if(needPrice) parts.push({key:'price',label:'Price',done:hasPrice});
+  const allDone=parts.every(p=>p.done);
+  if(r.ok && allDone) return {parts,state:'ready',text:describeParsed(r),result:r};
+  if(allDone) return {parts,state:'blocked',text:r.ok?'':r.error};
+  return {parts,state:'pending',text:'Still needed: '+parts.filter(p=>!p.done).map(p=>p.label.toLowerCase()).join(', ')+'.'};
+}
 function describeParsed(r){
   const it=r.item;
   return productLabel(it)+', '+itemSizeText(it)+', '+itemLoadText(it)
@@ -1382,7 +1427,7 @@ function buildWorkbook(ExcelJS,M,logos){
 }
 
 return {LOADS,DATA,FLAGS,PRODUCTS,SHAPES,LOAD_CODE,LOAD_PRINT,PRINT_NAME,GROUP_TITLE,GROUP_NOTE,GULLY_OTO,DEFAULT_FIELDS,CUSTOMER_KEYS,COLW,NUMFMT,
-  findRow,isCic,FUEL_INFO,isMulti,coversOf,allowedFrames,serialOf,lcFirst,isLoadIdx,isTwin,isTwinItem,priceOf,normFrame,listFrame,isManual,listPrice,unitPrice,pctOf,depthOf,itemDisc,itemSizeText,itemLoadText,itemLoadPrint,finishText,customName,groupTitle,FRAME_LABEL,usdRateOf,fmtUS,usd2,pctLabel,modeOf,linePrice,money,moneyShort,NUMFMT_USD,itemKey,groupKey,flagFor,gullyOTO,inchesOf,sizeText,loadText,loadPrint,productLabel,specText,
+  findRow,checkLine,isCic,FUEL_INFO,isMulti,coversOf,allowedFrames,serialOf,lcFirst,isLoadIdx,isTwin,isTwinItem,priceOf,normFrame,listFrame,isManual,listPrice,unitPrice,pctOf,depthOf,itemDisc,itemSizeText,itemLoadText,itemLoadPrint,finishText,customName,groupTitle,FRAME_LABEL,usdRateOf,fmtUS,usd2,pctLabel,modeOf,linePrice,money,moneyShort,NUMFMT_USD,itemKey,groupKey,flagFor,gullyOTO,inchesOf,sizeText,loadText,loadPrint,productLabel,specText,
   defaultWording,wordingOf,TRANSPORT_MODES,PAY_PRESETS,transportText,paySlabsOf,slabTotal,slabProblem,paymentLines,fmtIN,rupees,rupees2,round2,ddmmyyyy,fyOf,pad3,todayISO,refNo,parseLine,describeParsed,matchSize,
   totals,autoSubject,introText,buildModel,whatsappText,wrapLines,rowHeightFor,buildWorkbook,stripB64,
   logos:{tp:LOGO_TP,td:LOGO_TD}};
@@ -1505,36 +1550,49 @@ function flashSummary(){
 const plural=(n,one,many)=>n+' '+(n===1?one:many);
 
 /* ---------- Type-to-add ----------
-   Lines are checked only when you press Enter or Add, never while you type.
-   Lines that could not be added stay in the box, and their red notes stay put
-   until the next Add. */
+   A live checklist under the box shows, for each line, which details are filled in
+   (product, size, load class, qty, and price when one has to be typed). Missing
+   details stay grey; a line turns green only when everything is there and it can be
+   priced. Lines that could not be added stay in the box with their checklist. */
 const quick=$('#quick');
-function renderParseErrors(fails){
-  $('#parseList').innerHTML=fails.map(r=>'<li class="err"><span class="dot" aria-hidden="true"></span><span><span class="orig">'+esc(r.text)+'</span><span class="msg"><span class="sr-only">Problem: </span>'+esc(r.error)+'</span></span></li>').join('');
+function renderLineCheck(){
+  const lines=quick.value.split('\n').filter(l=>l.trim());
+  const many=lines.length>1;
+  const res=lines.map(l=>({line:l,c:T.checkLine(l)}));
+  $('#lineCheck').innerHTML=res.map(({line,c})=>{
+    const chips=c.parts.map(p=>'<span class="chip'+(p.done?' done':'')+'"><span class="tick" aria-hidden="true">'+(p.done?'✓':'')+'</span>'+esc(p.label)+'<span class="sr-only">'+(p.done?', filled':', missing')+'</span></span>').join('');
+    const lbl = c.state==='ready' ? 'Ready to add: ' : c.state==='blocked' ? 'Can’t price this line: ' : '';
+    return '<li class="lc '+c.state+'"><span class="dot" aria-hidden="true"></span><div class="lc-body">'
+      +(many?'<span class="lc-line">'+esc(line.trim())+'</span>':'')
+      +'<div class="chips">'+chips+'</div>'
+      +(c.text?'<span class="lc-text"><span class="sr-only">'+lbl+'</span>'+esc(c.text)+'</span>':'')+'</div></li>';
+  }).join('');
+  const ready=res.filter(x=>x.c.state==='ready').length;
+  $('#quickAdd').textContent = ready>1 ? 'Add '+ready : 'Add';
 }
 function addFromText(){
   const lines=quick.value.split('\n');
-  const keep=[], fails=[]; let added=0;
+  const keep=[]; let added=0, bad=0;
   for(const line of lines){
     if(!line.trim()) continue;
     const r=T.parseLine(line);
-    if(r.ok && addItem(r.item)){ added++; } else { keep.push(line); fails.push(r.ok?{text:r.text,error:'This line could not be priced.'}:r); }
+    if(r.ok && addItem(r.item)){ added++; } else { keep.push(line); bad++; }
   }
-  if(!added && !fails.length){ toast('Type a line first, for example: solid top 600x600 B125 qty 4.',true); quick.focus(); return; }
+  if(!added && !bad){ toast('Type a line first, for example: solid top 600x600 B125 qty 4.',true); quick.focus(); return; }
   quick.value=keep.join('\n');
-  renderParseErrors(fails); saveQuote();
+  renderLineCheck(); saveQuote();
   if(added){ renderSummary(); flashSummary(); }
-  const bad=fails.length;
   if(added && !bad) toast(plural(added,'item','items')+' added.');
   else if(added && bad) toast(plural(added,'item','items')+' added. '+plural(bad,'line still needs','lines still need')+' fixing.');
-  else toast('Nothing added. '+plural(bad,'line needs','lines need')+' fixing, see the red note under the box.',true);
+  else toast('Nothing added. '+plural(bad,'line needs','lines need')+' more details, see the checklist under the box.',true);
 }
 quick.value=Q.draft;
-quick.addEventListener('input',()=>{ if(!quick.value.trim()) renderParseErrors([]); saveQuote(); });
+quick.addEventListener('input',()=>{ renderLineCheck(); saveQuote(); });
 quick.addEventListener('keydown',e=>{
   if(e.key==='Enter' && !e.shiftKey && !e.isComposing){ e.preventDefault(); addFromText(); }
 });
 $('#quickAdd').addEventListener('click',addFromText);
+renderLineCheck();
 
 /* ---------- Visual picker ---------- */
 const PICK_PRODUCTS=[...T.PRODUCTS,'custom'];
@@ -1974,7 +2032,7 @@ $('#btnClear').addEventListener('click',()=>{
 });
 $('#btnNew').addEventListener('click',()=>{
   if(!window.confirm('Start a new quotation? This clears the items and customer details. Terms, signatory, saved customers and the serial number are kept.')) return;
-  Q.items=[]; Q.mode='gst'; quick.value=''; openWording.clear(); renderParseErrors([]);
+  Q.items=[]; Q.mode='gst'; quick.value=''; openWording.clear(); renderLineCheck();
   for(const k of T.CUSTOMER_KEYS) F[k]=T.DEFAULT_FIELDS[k];
   F.qdate=today();
   saveFields(); saveQuote(); fillForm(); $('#discount').value=''; $('#custPick').value=''; renderSummary(); renderRef();
