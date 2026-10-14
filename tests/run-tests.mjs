@@ -123,7 +123,7 @@ await test('parser: load words, boundaries and 2.5 before 5 T', () => {
   const r2 = L('solid 1500x1500 d400 2'); eq(r2.item.id, 's1500'); eq(r2.item.qty, 2);
 });
 await test('parser: errors are plain sentences', () => {
-  eq(TD.parseLine('600x600 b125').error, 'Name the product: solid top, recess, gully, air & water tight, hinged, tank, chamber or multiple cover.');
+  eq(TD.parseLine('600x600 b125').error, 'Name the product: solid top, recess, gully, air & water tight, fuel station, hinged, tank, chamber or multiple cover.');
   eq(TD.parseLine('solid top b125 qty 3').error, 'Add the size, for example 600x600 or 900 dia.');
 });
 await test('parser: circular, × and *, twin preference, gully out-to-out map', () => {
@@ -292,6 +292,29 @@ await test('multi-cover manhole covers are fully custom (size, covers, frame, lo
   eq(M.groups[0].note, 'THERMODRAIN manhole covers are load tested as per BS EN 124 or IS 1726.'); eq(M.groups[2].note, null);
   ok(M.subject.includes('MULTIPLE MANHOLE COVER') && M.subject.includes('CHAMBER'), M.subject);
   ok(TD.itemKey(r.item) !== TD.itemKey({ ...r.item, covers: 4 }), 'different cover counts never merge');
+});
+
+await test('fuel station A&W covers: every price, model and weight from the PETROL PUMP price list', () => {
+  const sheet = [ // [line, id, price, model, kg]
+    ['fuel 900 dia c250', 'c900', 48255, '900 (A&W.C)', 68], ['fuel 900 dia d400', 'c900', 52965, '900 (A&W.C)', 72],
+    ['fuel 900x900 c250', 's900', 64735, '900*900 (A&W.C)', 85], ['fuel 900x900 d400', 's900', 72975, '900*900 (A&W.C)', 92],
+    ['fuel 900 dia x 200 mm inner dia c250', 'c900cic', 51790, '900 (A&W.C) CIC', 65], ['fuel 900 dia cic d400', 'c900cic', 56495, '900 (A&W.C) CIC', 70],
+    ['petrol pump 900x900x200mm inner dia c250', 's900cic', 68265, '900*900 (A&W.C) CIC', 81], ['petrol pump 900x900 cover in cover d400', 's900cic', 76505, '900*900 (A&W.C) CIC', 90],
+    ['fuel 600x600 c250', 's600', 31780, '600*600 (A&W.C)', 30], ['fuel 600x600 d400', 's600', 34135, '600*600 (A&W.C)', 40]];
+  for (const [line, id, price, model, kg] of sheet) {
+    const r = TD.parseLine(line + ' qty 2');
+    ok(r.ok, line + ': ' + r.error); eq(r.item.prod, 'fuel', line); eq(r.item.id, id, line); eq(r.price, price, line); eq(r.item.qty, 2, line);
+    const w = TD.defaultWording(r.item); ok(w.includes('Model ' + model) && w.includes('cover weight ' + kg + ' kg'), w);
+    if (id.endsWith('cic')) ok(w.includes('200 mm inner dia (cover in cover)'), w);
+  }
+  eq(TD.parseLine('fuel 900 dia b125').error, 'Fuel station covers are listed for C250 and D400 only.');
+  eq(TD.parseLine('fuel 600x600 cic c250').error, '600 × 600 with 200 mm inner dia (CIC) is not in the fuel station price list.');
+  for (const l of [0, 1, 2, 5]) eq(TD.priceOf('fuel', 'c900', l), null);
+  const M = TD.buildModel([TD.parseLine('fuel 900 dia c250').item], FIELDS, true);
+  eq(M.groups[0].title, '‘THERMODRAIN’ GRP/FRP/COMPOSITE AIR & WATER TIGHT COVER FOR FUEL STATION WITH FRAME');
+  eq(M.groups[0].note, 'THERMODRAIN fuel station covers (air & water tight) are load tested as per IS 1726 & BS EN 124.');
+  ok(M.subject.includes('AIR & WATER TIGHT COVER FOR FUEL STATION'), M.subject);
+  eq(TD.parseLine('air water tight 600 b125').item.prod, 'aw', 'ordinary A&W covers unchanged');
 });
 
 /* ---------------- Excel ---------------- */

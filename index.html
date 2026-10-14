@@ -623,6 +623,16 @@ const DATA={
    ['s1200','1200 x 1200 mm (48"x48")',[1200,1200],[54280,60205,80625,90565,130735,196085]],
    ['s1500','1500 x 1500 mm (60"x60")',[1500,1500],[91800,101660,121665,156060,193060,289600]]]
  }},
+ // Fuel station A&W tight covers: price list "PETROL PUMP", w.e.f. 10.08.2026. Only C250 and D400 are listed.
+ fuel:{name:'Fuel Station A&W Cover',shapes:{
+  Circular:[
+   ['c900','900 mm (36")',[900],[null,null,null,48255,52965,null]],
+   ['c900cic','900 mm (36"), 200 mm inner dia (cover in cover)',[900],[null,null,null,51790,56495,null]]],
+  Square:[
+   ['s600','600 x 600 mm (24"x24")',[600,600],[null,null,null,31780,34135,null]],
+   ['s900','900 x 900 mm (36"x36")',[900,900],[null,null,null,64735,72975,null]],
+   ['s900cic','900 x 900 mm (36"x36"), 200 mm inner dia (cover in cover)',[900,900],[null,null,null,68265,76505,null]]]
+ }},
  recess:{name:'Recess Cover',shapes:{
   Circular:[
    ['c500','500 mm (20")',[500],[8745,9330,12175,16060,20675,null]],
@@ -679,16 +689,24 @@ const FLAGS={
 };
 
 /* ---- Display / print vocabulary ---- */
-const PRODUCTS=['solid','hinged','tank','aw','recess','gully'];
+const PRODUCTS=['solid','hinged','tank','aw','fuel','recess','gully'];
+// Fuel station covers: model number and cover weight (kg) per load class, from the same price list.
+const FUEL_INFO={
+  c900:{model:'900 (A&W.C)',kg:{3:68,4:72}}, c900cic:{model:'900 (A&W.C) CIC',kg:{3:65,4:70}},
+  s600:{model:'600*600 (A&W.C)',kg:{3:30,4:40}}, s900:{model:'900*900 (A&W.C)',kg:{3:85,4:92}},
+  s900cic:{model:'900*900 (A&W.C) CIC',kg:{3:81,4:90}}
+};
+function isCic(id){ return /cic$/.test(String(id)); }
 const SHAPES=['Square','Rectangular','Circular'];
 const LOAD_CODE=['2.5 T','5 T','B125','C250','D400','E600'];
 const LOAD_PRINT=['2.5 T','5 T','B 125','C 250','D 400','E 600'];
-const PRINT_NAME={solid:'SOLID TOP MANHOLE COVER',hinged:'HINGED MANHOLE COVER',tank:'WATER TANK COVER',aw:'AIR & WATER TIGHT COVER',recess:'RECESS COVER',gully:'WATER GULLY COVER'};
+const PRINT_NAME={solid:'SOLID TOP MANHOLE COVER',hinged:'HINGED MANHOLE COVER',tank:'WATER TANK COVER',aw:'AIR & WATER TIGHT COVER',fuel:'AIR & WATER TIGHT COVER FOR FUEL STATION',recess:'RECESS COVER',gully:'WATER GULLY COVER'};
 const GROUP_TITLE={
   solid:'‘THERMODRAIN’ FRP/GRP SOLID TOP MANHOLE COVER WITH FRAME',
   hinged:'‘THERMODRAIN’ FRP/GRP HINGED MANHOLE COVER WITH FRAME (180° opening with FRP hinge)',
   tank:'‘THERMODRAIN’ FRP/GRP WATER TANK COVER WITH FRAME (180° opening with hinge & locking arrangement)',
   aw:'‘THERMODRAIN’ FRP/GRP AIR & WATER TIGHT COVER WITH FRAME',
+  fuel:'‘THERMODRAIN’ GRP/FRP/COMPOSITE AIR & WATER TIGHT COVER FOR FUEL STATION WITH FRAME',
   recess:'‘THERMODRAIN’ FRP/GRP RECESS COVER WITH FRAME',
   'gully|without':'‘THERMODRAIN’ FRP WATER GULLY COVER WITHOUT FRAME (with 2 side support & inbuilt beam design)',
   'gully|with':'‘THERMODRAIN’ FRP WATER GULLY COVER WITH FRAME'
@@ -697,6 +715,7 @@ const NOTE_MHC='THERMODRAIN manhole covers are load tested as per BS EN 124 or I
 const GROUP_NOTE={
   solid:NOTE_MHC, hinged:NOTE_MHC, tank:null,
   aw:'THERMODRAIN air & water tight covers are load tested as per BS EN 124 or IS 1726.',
+  fuel:'THERMODRAIN fuel station covers (air & water tight) are load tested as per IS 1726 & BS EN 124.',
   recess:'THERMODRAIN recess covers are load tested as per BS EN 124 or IS 1726.',
   'gully|without':'THERMODRAIN water gully covers (Tested as per BS EN 124 or IS 1726) have a minimum opening of 36% for smooth flow of water.',
   'gully|with':'THERMODRAIN water gully covers (Tested as per BS EN 124 or IS 1726) have a minimum opening of 36% for smooth flow of water.'
@@ -841,6 +860,7 @@ function sizeText(prod,id,load){
   if(prod==='gully'){ const o=gullyOTO(id,load); return o.d ? 'Ø '+o.d+' mm' : o.w+' × '+o.l+' mm'; }
   const d=f.row[2]; let s = d.length===1 ? 'Ø '+d[0]+' mm' : d[0]+' × '+d[1]+' mm';
   if(isTwin(f.row)) s+=', 2 covers, 1 frame';
+  if(isCic(id)) s+=', 200 mm inner dia (CIC)';
   return s;
 }
 function itemSizeText(it){
@@ -871,6 +891,7 @@ function specText(it){
   else if(it.prod==='tank') parts.push('500 kg');
   else parts.push(LOAD_CODE[it.load], LOADS[it.load].name);
   const d=depthOf(it); if(d) parts.push('recess depth '+d+' mm');
+  const fi=it.prod==='fuel'&&FUEL_INFO[it.id]; if(fi&&fi.kg[it.load]) parts.push('model '+fi.model+', '+fi.kg[it.load]+' kg');
   return parts.join(', ');
 }
 /* Default size wording printed in the Excel quotation. */
@@ -890,6 +911,11 @@ function defaultWording(it){
     : d[0]+' mm x '+d[1]+' mm ('+inch[0]+'" x '+inch[1]+'") clear opening';
   if(isTwin(f.row)){ const fr=normFrame(it.prod,it.frame,it.id); s+= fr==='none' ? ', 2 covers (without frame)' : ', 2 covers with single '+(fr==='frp'?'FRP':'MS')+' frame'; }
   const dp=depthOf(it); if(dp) s+=', recess depth '+dp+' mm';
+  if(it.prod==='fuel'){
+    const fi=FUEL_INFO[it.id];
+    if(isCic(it.id)) s+=' with 200 mm inner dia (cover in cover)';
+    if(fi){ s+=', Model '+fi.model; if(fi.kg[it.load]) s+=', cover weight '+fi.kg[it.load]+' kg'; }
+  }
   return s;
 }
 function wordingOf(it){ return (it.wording && String(it.wording).trim()) ? String(it.wording).trim() : defaultWording(it); }
@@ -933,6 +959,7 @@ const PRODUCT_RES=[
   ['custom', MULTI_RE],
   ['custom', /chamb[ea]r/],
   ['gully', /gulle?y|water\s*gul|grating\s*cover/],
+  ['fuel', /\bfuel|petrol|diesel|\bcic\b|cover\s*-?\s*in\s*-?\s*cover/],
   ['aw', /\bair\b|airtight|water\s*-?\s*tight|\ba\s*&\s*w\b|\ba\s*\/\s*w\b/],
   ['recess', /recess/],
   ['tank', /tank/],
@@ -987,8 +1014,14 @@ function parseLine(raw){
   // 1. Product
   let prod=null;
   for(const [k,re] of PRODUCT_RES){ if(re.test(s)){ prod=k; break; } }
-  if(!prod) return fail('Name the product: solid top, recess, gully, air & water tight, hinged, tank, chamber or multiple cover.');
+  if(!prod) return fail('Name the product: solid top, recess, gully, air & water tight, fuel station, hinged, tank, chamber or multiple cover.');
   const multi = prod==='custom' && MULTI_RE.test(s);
+  // Fuel station "cover in cover" (CIC): 200 mm inner dia
+  let cic=false;
+  if(prod==='fuel'){
+    if(/\bcic\b|cover\s*-?\s*in\s*-?\s*cover|inner\s*dia/.test(s)) cic=true;
+    while(take(/(?:x\s*)?\b200\s*(?:mm)?\s*inner\s*(?:dia(?:meter)?|ø)?|\binner\s*(?:dia(?:meter)?|ø)\s*(?:of\s*)?200\s*(?:mm)?|\bcic\b|cover\s*-?\s*in\s*-?\s*cover/));
+  }
   let covers=null;
   if(multi){ const mc=take(/(?<![\d.x])(\d{1,2})\s*(?:nos?\.?\s*)?(?:covers?|parts?|lids?)\b(?!\s*x)/); if(mc) covers=+mc[1]; }
   const hasMS=/\bm\.?\s*s\.?\s*frame|\bmild\s*steel|\bms\b/.test(s);
@@ -1053,7 +1086,13 @@ function parseLine(raw){
     return {ok:true,text,item,price,amount:price*qty};
   }
   if(!size) return fail('Add the size, for example 600x600 or 900 dia.');
-  const hit=matchSize(prod,size,load);
+  let hit=matchSize(prod,size,load);
+  if(hit && prod==='fuel'){
+    const want = cic ? hit.row[0].replace(/cic$/,'')+'cic' : hit.row[0].replace(/cic$/,'');
+    const alt=findRow('fuel',want);
+    if(!alt) return fail((size.a ? size.a+' × '+size.b : size.n+' mm')+' with 200 mm inner dia (CIC) is not in the fuel station price list.');
+    hit={shape:alt.shape,row:alt.row};
+  }
   if(!hit){
     const shown = size.a ? size.a+' × '+size.b : size.n+' mm';
     return fail(shown+' is not in the '+DATA[prod].name+' price list.');
@@ -1064,7 +1103,7 @@ function parseLine(raw){
   if(isManual(item)){
     if(!(price>0)) return fail(FRAME_LABEL[item.frame]+' has no list price for this cover. Add the price per piece, for example price 6500.');
     item.price=price;
-  } else if(listPrice(item)===null) return fail(LOAD_CODE[load]+' is on request for this size, so it can\'t be priced here.');
+  } else if(listPrice(item)===null) return fail(prod==='fuel' ? 'Fuel station covers are listed for C250 and D400 only.' : LOAD_CODE[load]+' is on request for this size, so it can\'t be priced here.');
   const p=unitPrice(item);
   return {ok:true,text,item,price:p,amount:p*qty};
 }
@@ -1343,7 +1382,7 @@ function buildWorkbook(ExcelJS,M,logos){
 }
 
 return {LOADS,DATA,FLAGS,PRODUCTS,SHAPES,LOAD_CODE,LOAD_PRINT,PRINT_NAME,GROUP_TITLE,GROUP_NOTE,GULLY_OTO,DEFAULT_FIELDS,CUSTOMER_KEYS,COLW,NUMFMT,
-  findRow,isMulti,coversOf,allowedFrames,serialOf,lcFirst,isLoadIdx,isTwin,isTwinItem,priceOf,normFrame,listFrame,isManual,listPrice,unitPrice,pctOf,depthOf,itemDisc,itemSizeText,itemLoadText,itemLoadPrint,finishText,customName,groupTitle,FRAME_LABEL,usdRateOf,fmtUS,usd2,pctLabel,modeOf,linePrice,money,moneyShort,NUMFMT_USD,itemKey,groupKey,flagFor,gullyOTO,inchesOf,sizeText,loadText,loadPrint,productLabel,specText,
+  findRow,isCic,FUEL_INFO,isMulti,coversOf,allowedFrames,serialOf,lcFirst,isLoadIdx,isTwin,isTwinItem,priceOf,normFrame,listFrame,isManual,listPrice,unitPrice,pctOf,depthOf,itemDisc,itemSizeText,itemLoadText,itemLoadPrint,finishText,customName,groupTitle,FRAME_LABEL,usdRateOf,fmtUS,usd2,pctLabel,modeOf,linePrice,money,moneyShort,NUMFMT_USD,itemKey,groupKey,flagFor,gullyOTO,inchesOf,sizeText,loadText,loadPrint,productLabel,specText,
   defaultWording,wordingOf,TRANSPORT_MODES,PAY_PRESETS,transportText,paySlabsOf,slabTotal,slabProblem,paymentLines,fmtIN,rupees,rupees2,round2,ddmmyyyy,fyOf,pad3,todayISO,refNo,parseLine,describeParsed,matchSize,
   totals,autoSubject,introText,buildModel,whatsappText,wrapLines,rowHeightFor,buildWorkbook,stripB64,
   logos:{tp:LOGO_TP,td:LOGO_TD}};
@@ -1372,13 +1411,14 @@ const ICON={
   solid:svgI('<rect x="5" y="5" width="30" height="30" rx="2"/><rect x="10" y="10" width="20" height="20" rx="1.5"/><path d="M14 16h12M14 20h12M14 24h12"/>'),
   hinged:svgI('<rect x="5" y="18" width="30" height="17" rx="2"/><path d="M9 18 L13 5 H31 L35 18"/><circle cx="9" cy="18" r="1.6"/><circle cx="31" cy="18" r="1.6"/>'),
   tank:svgI('<ellipse cx="20" cy="10" rx="13" ry="5"/><path d="M7 10v19c0 2.8 5.8 5 13 5s13-2.2 13-5V10"/><path d="M14 9.5h12"/>'),
+  fuel:svgI('<path d="M8 34V9a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v25"/><path d="M6 34h20"/><rect x="11" y="10" width="10" height="7" rx="1"/><path d="M24 15h3a3 3 0 0 1 3 3v9a2 2 0 0 0 4 0V14l-4-4"/>'),
   aw:svgI('<circle cx="20" cy="20" r="15"/><circle cx="20" cy="20" r="11" stroke-dasharray="2.5 2.5"/><circle cx="20" cy="20" r="6"/>'),
   recess:svgI('<rect x="5" y="5" width="30" height="30" rx="2"/><rect x="9" y="9" width="22" height="22"/><path d="M16.3 9v22M23.7 9v22M9 16.3h22M9 23.7h22"/>'),
   gully:svgI('<rect x="5" y="8" width="30" height="24" rx="2"/><path d="M11 13v14M15.5 13v14M20 13v14M24.5 13v14M29 13v14"/>'),
   custom:svgI('<path d="M6 14 L14 6 H34 V26 L26 34 H6 Z"/><path d="M6 14 H26 V34 M26 14 L34 6"/><path d="M10 20h12M10 25h12" stroke-dasharray="2 2"/>'),
   empty:svgI('<rect x="9" y="7" width="22" height="28" rx="2"/><path d="M15 7V5h10v2"/><path d="M14 16h12M14 21h12M14 26h7"/>')
 };
-const PROD_DESC={solid:'Manhole cover with frame',hinged:'Opens 180° on FRP hinge',tank:'500 kg, hinge + locking',aw:'Gasketed cover with frame',recess:'Tray top for tiles or paving',gully:'Slotted, with or without frame',custom:'Chambers, multi-cover covers, your price'};
+const PROD_DESC={solid:'Manhole cover with frame',hinged:'Opens 180° on FRP hinge',tank:'500 kg, hinge + locking',aw:'Gasketed cover with frame',fuel:'Petrol pump A&W covers, C250 / D400',recess:'Tray top for tiles or paving',gully:'Slotted, with or without frame',custom:'Chambers, multi-cover covers, your price'};
 
 /* ---------- State ---------- */
 const today=()=>T.todayISO();
@@ -1537,6 +1577,7 @@ function stepDownLoad(){
 }
 function inchSub(row){
   if(T.isTwin(row)) return '2 covers, 1 MS frame';
+  if(T.isCic(row[0])) return '200 inner dia (CIC)';
   const inch=T.inchesOf(row[1]);
   return inch[1] ? inch[0]+'″ × '+inch[1]+'″' : (inch[0]?'Ø '+inch[0]+'″':'');
 }
@@ -1676,7 +1717,9 @@ function renderPicker(){
   saveQuote();
 }
 $('#prodGrid').addEventListener('click',e=>{ const b=e.target.closest('[data-prod]'); if(!b) return;
-  if(P.prod!==b.dataset.prod){ P.prod=b.dataset.prod; P.frame=null; P.price=''; } renderPicker(); });
+  if(P.prod!==b.dataset.prod){ P.prod=b.dataset.prod; P.frame=null; P.price='';
+    if(P.prod==='fuel' && !(P.load>=3 && P.load<=4)) P.load = P.load>4 ? 4 : 3; } // fuel station covers are listed only for C250 and D400
+  renderPicker(); });
 $('#shapeSeg').addEventListener('click',e=>{ const b=e.target.closest('[data-shape]'); if(!b||b.dataset.shape===P.shape) return; P.shape=b.dataset.shape; P.price=''; renderPicker(); });
 $('#sizeGrid').addEventListener('click',e=>{ const b=e.target.closest('[data-size]'); if(!b) return;
   if(b.dataset.size===P.id) return;

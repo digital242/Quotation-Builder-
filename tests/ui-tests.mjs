@@ -450,6 +450,24 @@ await test('UI: custom multi-cover manhole cover from the picker', async () => {
   await ctx.close();
 });
 
+await test('UI: fuel station covers in the picker (C250 / D400 only, CIC sizes)', async () => {
+  const { ctx, page } = await newPage();
+  await page.click('[data-prod="fuel"]');
+  eq(await page.getAttribute('[data-load="3"]', 'aria-pressed'), 'true', 'starts on C250');
+  for (const l of [0, 1, 2, 5]) ok(await page.isDisabled(`[data-load="${l}"]`), 'load ' + l + ' not offered');
+  await page.click('[data-shape="Square"]'); await page.click('[data-size="s900cic"]');
+  ok((await page.textContent('[data-size="s900cic"]')).includes('200 inner dia (CIC)'));
+  await page.click('[data-load="4"]');
+  ok((await page.textContent('#abPrice')).startsWith('₹76,505'));
+  ok((await page.textContent('#abSpec')).includes('model 900*900 (A&W.C) CIC, 90 kg'));
+  await page.click('#abAdd');
+  const M = await page.evaluate(() => window.__tdApp.model());
+  eq(M.groups[0].items[0].price, 76505);
+  eq(M.groups[0].items[0].wording, '900 mm x 900 mm (36" x 36") clear opening with 200 mm inner dia (cover in cover), Model 900*900 (A&W.C) CIC, cover weight 90 kg');
+  eq(page.errors.length, 0, page.errors.join());
+  await ctx.close();
+});
+
 await test('UI 11a: 360 px wide, no horizontal scroll (empty, with items, picker on gully)', async () => {
   const { ctx, page } = await newPage({ viewport: { width: 360, height: 780 } });
   const sw = () => page.evaluate(() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth));
@@ -492,7 +510,7 @@ await test('UI: accessibility basics (labels, aria-pressed, focus ring)', async 
   const { ctx, page } = await newPage();
   const unlabeled = await page.evaluate(() => [...document.querySelectorAll('input,select,textarea')].filter(el => el.type !== 'hidden' && !el.labels?.length && !el.getAttribute('aria-label')).map(el => el.id || el.outerHTML.slice(0, 60)));
   eq(unlabeled.length, 0, unlabeled.join());
-  eq(await page.locator('#prodGrid button[aria-pressed]').count(), 7);
+  eq(await page.locator('#prodGrid button[aria-pressed]').count(), 8);
   await page.focus('[data-prod="aw"]'); await page.keyboard.press('Enter');
   eq(await page.getAttribute('[data-prod="aw"]', 'aria-pressed'), 'true');
   eq(await page.evaluate(() => document.activeElement.dataset.prod), 'aw', 'focus kept after re-render');
