@@ -1127,6 +1127,18 @@ function parseLine(raw){
 }
 /* Live checklist for one typed line: which details are present, and whether it can be added.
    Returns {parts:[{key,label,done}], state:'empty'|'pending'|'ready'|'blocked', text}. */
+/* Full product names for the checklist: a single word like "solid" or "gully" is not enough. */
+const FULL_NAME={
+  solid:[/\bsolid\s*-?\s*top\b|\bmanhole\s*covers?\b|\bmhc\b|\btop\s*covers?\b/,'solid top cover'],
+  hinged:[/\bhinged?\s*-?\s*(?:covers?|mhc|manhole)/,'hinged manhole cover'],
+  tank:[/\btank\s*covers?\b/,'water tank cover'],
+  aw:[/\bair\s*(?:&|and)?\s*water\s*-?\s*tight\b|\bairtight\s*covers?\b|\ba\s*(?:&|\/)\s*w\s*(?:covers?|tight)\b/,'air & water tight cover'],
+  fuel:[/\bfuel\s*station\b|\bpetrol\s*pump\b|\bdiesel\b/,'fuel station cover'],
+  recess:[/\brecess(?:ed)?\s*covers?\b/,'recess cover'],
+  gully:[/\bwater\s*gull?e?y\b|\bgull?e?y\s*(?:covers?|gratings?)\b|\bgrating\s*covers?\b/,'water gully cover'],
+  chamber:[/chamb[ea]r/,'chamber'],
+  multi:[MULTI_RE,'multiple manhole cover']
+};
 function checkLine(raw){
   const text=String(raw||'').trim();
   if(!text) return {parts:[],state:'empty',text:''};
@@ -1143,14 +1155,17 @@ function checkLine(raw){
   const r=parseLine(text);
   // a typed price is needed for custom items and for frames without a list price
   const needPrice = prod==='custom' || (r.ok && isManual(r.item)) || (!r.ok && /no list price/.test(r.error));
-  const parts=[{key:'product',label:'Product',done:!!prod},{key:'size',label:chamber?'Size L × W × H':multi?'Size L × W':'Size',done:hasSize}];
+  const nameKey = multi ? 'multi' : chamber ? 'chamber' : prod;
+  const fullName = !!(nameKey && FULL_NAME[nameKey][0].test(s));
+  const parts=[{key:'product',label:'Product',done:fullName},{key:'size',label:chamber?'Size L × W × H':multi?'Size L × W':'Size',done:hasSize}];
   if(!chamber) parts.push({key:'load',label:'Load class',done:hasLoad});
   parts.push({key:'qty',label:'Qty',done:hasQty});
   if(needPrice) parts.push({key:'price',label:'Price',done:hasPrice});
   const allDone=parts.every(p=>p.done);
   if(r.ok && allDone) return {parts,state:'ready',text:describeParsed(r),result:r};
   if(allDone) return {parts,state:'blocked',text:r.ok?'':r.error};
-  return {parts,state:'pending',text:'Still needed: '+parts.filter(p=>!p.done).map(p=>p.label.toLowerCase()).join(', ')+'.'};
+  const missing=parts.filter(p=>!p.done).map(p=> p.key==='product' ? (nameKey ? 'full product name (e.g. '+FULL_NAME[nameKey][1]+')' : 'product name') : p.label.toLowerCase());
+  return {parts,state:'pending',text:'Still needed: '+missing.join(', ')+'.'};
 }
 function describeParsed(r){
   const it=r.item;

@@ -71,11 +71,11 @@ await test('UI 1: paste four lines + Enter → 4 items and correct totals', asyn
 /* 2 + 3 + 4 */
 await test('UI 2-4: valid lines added, invalid lines stay with plain errors', async () => {
   const { ctx, page } = await newPage();
-  await typeLines(page, ['air water tight 750x750 c250 3 nos', 'solid 777x777 b125 qty 1', 'recess 600x600 e600 qty 1']);
+  await typeLines(page, ['air water tight 750x750 c250 3 nos', 'solid top 777x777 b125 qty 1', 'recess cover 600x600 e600 qty 1']);
   await page.keyboard.press('Enter');
   eq(await page.locator('#sumItems .item').count(), 1);
   ok((await page.textContent('#sumItems')).includes('₹83,085'));
-  eq(await page.inputValue('#quick'), 'solid 777x777 b125 qty 1\nrecess 600x600 e600 qty 1');
+  eq(await page.inputValue('#quick'), 'solid top 777x777 b125 qty 1\nrecess cover 600x600 e600 qty 1');
   const errs = await page.locator('#lineCheck li.blocked .lc-text').allTextContents();
   ok(errs[0].includes('777 × 777 is not in the Solid Top MHC price list.'), errs[0]);
   ok(errs[1].includes("E600 is on request for this size, so it can't be priced here."), errs[1]);
@@ -274,11 +274,14 @@ await test('UI: live checklist (grey while missing, green when every detail is f
   const { ctx, page } = await newPage();
   await page.focus('#quick'); await page.keyboard.type('solid');
   const chips = async () => (await page.locator('#lineCheck .chip').evaluateAll(els => els.map(e => (e.classList.contains('done') ? '+' : '-') + e.textContent.replace(/, (filled|missing)$/, ''))));
+  eq((await chips()).join(' '), '-Product -Size -Load class -Qty', '"solid" alone is not the full name');
+  ok((await page.textContent('#lineCheck .lc-text')).includes('full product name (e.g. solid top cover)'));
+  await page.keyboard.type(' top');
   eq((await chips()).join(' '), '+✓Product -Size -Load class -Qty');
   eq(await page.locator('#lineCheck li.pending').count(), 1, 'grey, not red, while details are missing');
   eq(await page.locator('#lineCheck li.blocked, #lineCheck li.ready').count(), 0);
   ok((await page.textContent('#lineCheck .lc-text')).includes('Still needed: size, load class, qty.'));
-  await page.keyboard.type(' top 600x600 b125');
+  await page.keyboard.type(' 600x600 b125');
   eq((await chips()).join(' '), '+✓Product +✓Size +✓Load class -Qty');
   eq(await page.locator('#lineCheck li.ready').count(), 0, 'not green until qty is given');
   await page.keyboard.type(' qty 4');
