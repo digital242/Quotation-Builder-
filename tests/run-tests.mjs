@@ -339,6 +339,16 @@ await test('live checklist: missing details listed, green only when complete and
   eq(TD.checkLine('solid b125 qty 4').parts.find(p => p.key === 'size').done, false, 'B125 is not mistaken for a size');
 });
 
+await test('regressions: sizes are never read as quantities; fuel "x 200" is the CIC model; clean reference', () => {
+  const a = TD.parseLine('petrol pump 900x900x200 d400 qty 2'); ok(a.ok, a.error); eq(a.item.id, 's900cic'); eq(a.price, 76505); eq(a.item.qty, 2);
+  const b = TD.parseLine('fuel station 900x900x200 d400'); eq(b.item.id, 's900cic'); eq(b.item.qty, 1, '200 is not a quantity');
+  const c = TD.parseLine('fuel station 900 dia x 200 c250'); eq(c.item.id, 'c900cic'); eq(c.price, 51790); eq(c.item.qty, 1);
+  eq(TD.parseLine('solid top 600x600 b125 4').item.qty, 4);
+  eq(TD.parseLine('solid top cover 600x600x200 b125').error, 'Three sizes were given. Use length x width for a cover, or write "chamber" for length x width x height.');
+  eq(TD.refNo({ series: 'tp 1', cityCode: 'b/lr', serial: 25, qdate: '2026-09-24' }), 'THERMODRAIN/QTN/TP1-BLR/025/2026-27');
+  eq(TD.refNo({ series: '', cityCode: '', serial: '', qdate: '2027-02-01' }), 'THERMODRAIN/QTN/TP1/001/2026-27');
+});
+
 /* ---------------- Excel ---------------- */
 async function makeXlsx(name, lines, discount, gst, fields = FIELDS) {
   const items = []; addAll(items, lines);

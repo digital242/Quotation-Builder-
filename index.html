@@ -361,7 +361,7 @@ dialog.pv::backdrop{background:rgba(27,42,74,.55)}
         <textarea id="quick" rows="3" aria-describedby="quickHint" autocomplete="off" spellcheck="false" placeholder="solid top 600x600 B125 qty 4&#10;water gully 395x990 5 ton qty 2&#10;chamber 1000x1000x600 two sided B125 price 45000 qty 2"></textarea>
         <button type="button" class="btn btn-primary qa-add" id="quickAdd">Add</button>
       </div>
-      <ul class="line-check" id="lineCheck" aria-live="polite"></ul>
+      <ul class="line-check" id="lineCheck" aria-label="Checklist for each typed line"></ul>
 
       <div class="divider" role="separator">or pick</div>
 
@@ -966,8 +966,9 @@ function pad3(n){ return String(Math.max(0,parseInt(n,10)||0)).padStart(3,'0'); 
 function serialOf(f){ const n=parseInt(f.serial,10); return n>=1 ? n : 1; }
 function todayISO(d){ d=d||new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function refNo(f){
-  const series=String(f.series||'TP1').trim().toUpperCase()||'TP1';
-  const code=String(f.cityCode||'').trim().toUpperCase();
+  // only letters and digits go into the reference, so '/' or spaces can't break its format
+  const series=String(f.series||'').toUpperCase().replace(/[^A-Z0-9]/g,'')||'TP1';
+  const code=String(f.cityCode||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
   return 'THERMODRAIN/QTN/'+series+(code?'-'+code:'')+'/'+pad3(serialOf(f))+'/'+fyOf(f.qdate||todayISO());
 }
 
@@ -1037,8 +1038,8 @@ function parseLine(raw){
   // Fuel station "cover in cover" (CIC): 200 mm inner dia
   let cic=false;
   if(prod==='fuel'){
-    if(/\bcic\b|cover\s*-?\s*in\s*-?\s*cover|inner\s*dia/.test(s)) cic=true;
-    while(take(/(?:x\s*)?\b200\s*(?:mm)?\s*inner\s*(?:dia(?:meter)?|ø)?|\binner\s*(?:dia(?:meter)?|ø)\s*(?:of\s*)?200\s*(?:mm)?|\bcic\b|cover\s*-?\s*in\s*-?\s*cover/));
+    if(/\bcic\b|cover\s*-?\s*in\s*-?\s*cover|inner\s*dia|x\s*200\b/.test(s)) cic=true;
+    while(take(/(?:x\s*)?\b200\s*(?:mm)?\s*inner\s*(?:dia(?:meter)?|ø)?|\binner\s*(?:dia(?:meter)?|ø)\s*(?:of\s*)?200\s*(?:mm)?|\bcic\b|cover\s*-?\s*in\s*-?\s*cover|x\s*200\s*(?:mm)?\b/));
   }
   let covers=null;
   if(multi){ const mc=take(/(?<![\d.x])(\d{1,2})\s*(?:nos?\.?\s*)?(?:covers?|parts?|lids?)\b(?!\s*x)/); if(mc) covers=+mc[1]; }
@@ -1079,13 +1080,15 @@ function parseLine(raw){
   else { for(const [i,re] of LOAD_RES){ if(take(re)){ load=i; break; } } }
 
   // 7. Size
+  if(prod!=='custom' && /(?<![\d.])\d{2,5}\s*(?:mm)?\s*x\s*\d{2,5}\s*(?:mm)?\s*x\s*\d{2,5}/.test(s))
+    return fail('Three sizes were given. Use length x width for a cover, or write "chamber" for length x width x height.');
   let size=null, dims3=null;
   if(prod==='custom' && !multi && (m=take(/(?<![\d.])(\d{2,5})\s*(?:mm)?\s*x\s*(\d{2,5})\s*(?:mm)?\s*x\s*(\d{2,5})(?![\d.])\s*(?:mm)?/))) dims3=[+m[1],+m[2],+m[3]];
   else if((m=take(/(?<![\d.])(\d{3,4})\s*(?:mm)?\s*x\s*(\d{3,4})(?![\d.])\s*(?:mm)?/))) size={a:+m[1],b:+m[2]};
   else if((m=take(/(?:(?:dia|ø|round)\.?\s*)?(?<![\d.])(\d{3,4})(?![\d.])\s*(?:mm)?\s*(?:diameter|dia\.?|ø|round)?/))) size={n:+m[1]};
 
   // 8. Quantity fallback
-  if(qty===null){ m=s.match(/(?<![\d.])(\d{1,4})(?![\d.])/); qty = m ? +m[1] : 1; }
+  if(qty===null){ m=s.match(/(?<!x\s*)(?<![\d.])(\d{1,4})(?![\d.])(?!\s*x\s*\d)/); qty = m ? +m[1] : 1; }
   if(!(qty>=1)) return fail('Quantity must be at least 1.');
 
   if(multi){
@@ -2082,7 +2085,7 @@ function paperHTML(M){
   h+=kv('OUR REF',esc(M.ref))+kv('DATE',esc(M.dateText));
   h+='<tr class="gap"><td colspan="8"></td></tr>';
   h+='<tr><td colspan="8" class="b">'+esc(M.company||'—')+'</td></tr>';
-  if(M.address) h+='<tr><td colspan="8">'+esc(M.address)+'</td></tr>';
+  if(M.address) h+='<tr><td colspan="8" style="white-space:pre-line">'+esc(M.address)+'</td></tr>';
   if(M.city) h+='<tr><td colspan="8">'+esc(M.city)+'</td></tr>';
   if(M.mobile) h+='<tr><td colspan="8">MOB.NO.: '+esc(M.mobile)+'</td></tr>';
   if(M.contact) h+='<tr class="gap"><td colspan="8"></td></tr>'+kv('KIND ATTN',esc(M.contact));
