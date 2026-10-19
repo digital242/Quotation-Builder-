@@ -483,6 +483,45 @@ await test('UI: fuel station covers in the picker (C250 / D400 only, CIC sizes)'
   await ctx.close();
 });
 
+await test('UI: company name suggests saved customers while typing; download records the quote', async () => {
+  const { ctx, page } = await newPage();
+  await page.evaluate(() => localStorage.setItem('td_customers', JSON.stringify([
+    { company: 'Brigade Infra', address: 'No. 29, Brigade Road', city: 'Bengaluru', cityCode: 'BGLR', contact: 'Mr Rao', mobile: '98450 00001', email: 'rao@brigade.example' },
+    { company: 'Prestige Estates', city: 'Mysuru', cityCode: 'MYS', contact: 'Ms Iyer' },
+    { company: 'Indian Oil Corporation', city: 'Mumbai', cityCode: 'BOM', contact: 'Mr Brijesh' }])));
+  await page.reload(); await page.waitForFunction(() => !!window.__tdApp);
+  await page.focus('#f_company');
+  eq(await page.isVisible('#custSuggest'), true, 'empty box shows the list on focus');
+  eq(await page.locator('#custSuggest li').count(), 3);
+  await page.keyboard.type('bri');
+  const opts = await page.locator('#custSuggest li b').allTextContents();
+  eq(opts[0], 'Brigade Infra', 'name starting with the text comes first');
+  ok(opts.includes('Indian Oil Corporation'), 'also matches the contact person (Brijesh)');
+  eq(await page.locator('#custSuggest li:first-child mark').textContent(), 'Bri');
+  eq(await page.getAttribute('#f_company', 'aria-expanded'), 'true');
+  await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');
+  eq(await page.inputValue('#f_company'), 'Brigade Infra'); eq(await page.inputValue('#f_address'), 'No. 29, Brigade Road');
+  eq(await page.inputValue('#f_contact'), 'Mr Rao'); eq(await page.inputValue('#f_cityCode'), 'BGLR');
+  ok(await page.isHidden('#custSuggest'), 'list closes after picking');
+  // mouse pick
+  await page.fill('#f_company', 'pres');
+  await page.click('#custSuggest li:first-child');
+  eq(await page.inputValue('#f_company'), 'Prestige Estates'); eq(await page.inputValue('#f_city'), 'Mysuru');
+  // Escape closes; unknown names show nothing
+  await page.fill('#f_company', 'zzz'); ok(await page.isHidden('#custSuggest'));
+  await page.fill('#f_company', 'Ind'); ok(await page.isVisible('#custSuggest')); await page.keyboard.press('Escape'); ok(await page.isHidden('#custSuggest'));
+  // download records the quotation against the customer
+  await page.fill('#f_company', 'Brig'); await page.click('#custSuggest li:first-child');
+  await typeLines(page, ['solid top 600x600 b125 qty 2']); await page.keyboard.press('Enter');
+  await Promise.all([page.waitForEvent('download'), page.click('#btnDownload')]);
+  const rec = await page.evaluate(() => JSON.parse(localStorage.getItem('td_customers')).find(c => c.company === 'Brigade Infra'));
+  eq(rec.quotes, 1); ok(/^THERMODRAIN\/QTN\/TP1-BGLR\/001\//.test(rec.lastRef), rec.lastRef); eq(rec.address, 'No. 29, Brigade Road');
+  await page.fill('#f_company', 'Brig');
+  ok((await page.textContent('#custSuggest li:first-child small')).includes('last quote 001'), 'suggestion shows the last quotation');
+  eq(page.errors.length, 0, page.errors.join());
+  await ctx.close();
+});
+
 await test('UI 11a: 360 px wide, no horizontal scroll (empty, with items, picker on gully)', async () => {
   const { ctx, page } = await newPage({ viewport: { width: 360, height: 780 } });
   const sw = () => page.evaluate(() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth));

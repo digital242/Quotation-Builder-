@@ -147,6 +147,16 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue)}
 .lc.ready .lc-text{color:#155C40;font-weight:600}
 .lc.blocked .lc-text{color:#7A5400;font-weight:600}
 
+.combo{position:relative}
+.suggest{position:absolute;left:0;right:0;top:100%;margin:4px 0 0;padding:4px;list-style:none;background:#fff;border:1px solid var(--blue);border-radius:12px;z-index:30;max-height:300px;overflow:auto;box-shadow:0 10px 24px rgba(27,42,74,.14)}
+.suggest li{padding:8px 10px;border-radius:8px;cursor:pointer;display:flex;flex-direction:column;gap:1px}
+.suggest li b{font-weight:700;font-size:14px;color:var(--text)}
+.suggest li mark{background:#FFF1B8;color:inherit;border-radius:2px}
+.suggest li small{font-size:12px;color:var(--muted)}
+.suggest li[aria-selected="true"],.suggest li:hover{background:var(--tint)}
+.suggest .none{color:var(--muted);font-size:13px;cursor:default}
+.suggest .none:hover{background:none}
+
 /* Picker */
 .field-label{font-weight:700;font-size:13.5px;margin:20px 0 8px;display:block;color:var(--text)}
 .prod-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
@@ -454,7 +464,9 @@ dialog.pv::backdrop{background:rgba(27,42,74,.55)}
         <button type="button" class="btn-link" id="custDel">Delete saved</button>
       </div>
       <div class="form-grid">
-        <div class="fld full"><label for="f_company">Company name <span class="req" aria-hidden="true">*</span></label><input id="f_company" data-f="company" autocomplete="organization" required aria-required="true"></div>
+        <div class="fld full combo"><label for="f_company">Company name <span class="req" aria-hidden="true">*</span></label><input id="f_company" data-f="company" autocomplete="off" required aria-required="true" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="custSuggest" aria-describedby="custHint">
+          <ul class="suggest" id="custSuggest" role="listbox" aria-label="Saved customers" hidden></ul>
+          <span class="sr-only" id="custHint">Type to see saved customers. Use the arrow keys and Enter to pick one.</span></div>
         <div class="fld full"><label for="f_address">Address</label><textarea id="f_address" data-f="address" rows="2" autocomplete="street-address"></textarea></div>
         <div class="fld"><label for="f_city">City</label><input id="f_city" data-f="city" autocomplete="address-level2"></div>
         <div class="fld"><label for="f_cityCode">City code in ref (e.g. BGLR)</label><input id="f_cityCode" data-f="cityCode" maxlength="8" autocapitalize="characters"></div>
@@ -1844,11 +1856,16 @@ function renderCustPick(sel){
     +customers.map((c,i)=>'<option value="'+i+'">'+esc(c.company+(c.city?', '+c.city:''))+'</option>').join('');
   if(sel!==undefined) $('#custPick').value=sel;
 }
-function upsertCustomer(quiet){
+/* Saves the customer. With a quote ({ref,date}) it also records that quotation against them. */
+function upsertCustomer(quiet,quote){
   const name=String(F.company||'').trim();
   if(!name){ if(!quiet){ toast('Enter the company name first, then save the customer.',true); $('#f_company').focus(); } return false; }
   const rec={}; for(const k of CUST_FIELDS) rec[k]=String(F[k]||'').trim();
   const i=customers.findIndex(c=>c.company.trim().toLowerCase()===name.toLowerCase());
+  const old=i>=0?customers[i]:{};
+  rec.quotes=(+old.quotes||0)+(quote?1:0);
+  rec.lastRef=quote?quote.ref:(old.lastRef||''); rec.lastDate=quote?quote.date:(old.lastDate||'');
+  rec.used=Date.now();
   if(i>=0) customers[i]=rec; else customers.push(rec);
   const ok=store.set(K_CUST,customers);
   renderCustPick(); $('#custPick').value=String(customers.indexOf(rec));
@@ -1856,11 +1873,59 @@ function upsertCustomer(quiet){
   return true;
 }
 $('#custSave').addEventListener('click',()=>upsertCustomer(false));
-$('#custPick').addEventListener('change',e=>{
-  const c=customers[+e.target.value]; if(e.target.value===''||!c) return;
+function fillCustomer(c){
   for(const k of CUST_FIELDS) F[k]=c[k]||'';
   saveFields(); fillForm(); renderRef(); renderReady();
   toast('Filled in '+c.company+'. Check the project and enquiry details.');
+}
+/* Company-name suggestions: matches saved customers by company, city or contact as you type. */
+const cIn=$('#f_company'), cList=$('#custSuggest');
+let sugg=[], suggActive=-1;
+function hiMatch(text,q){
+  const t=String(text||''); if(!q) return esc(t);
+  const i=t.toLowerCase().indexOf(q); if(i<0) return esc(t);
+  return esc(t.slice(0,i))+'<mark>'+esc(t.slice(i,i+q.length))+'</mark>'+esc(t.slice(i+q.length));
+}
+function openSuggest(){
+  const q=cIn.value.trim().toLowerCase();
+  if(!customers.length){ closeSuggest(); return; }
+  const scored=[];
+  for(const c of customers){
+    const name=c.company.toLowerCase(), extra=((c.city||'')+' '+(c.contact||'')).toLowerCase();
+    let score = !q ? 1 : name.startsWith(q) ? 4 : name.includes(' '+q) ? 3 : name.includes(q) ? 2 : extra.includes(q) ? 1 : 0;
+    if(q && name===q) score=0; // already typed in full: nothing to suggest
+    if(score>0) scored.push({c,score});
+  }
+  scored.sort((a,b)=>b.score-a.score || (+b.c.used||0)-(+a.c.used||0) || a.c.company.localeCompare(b.c.company));
+  sugg=scored.slice(0,8).map(x=>x.c);
+  if(!sugg.length){ closeSuggest(); return; }
+  suggActive=-1;
+  cList.innerHTML=sugg.map((c,i)=>'<li role="option" id="cs'+i+'" data-i="'+i+'" aria-selected="false"><b>'+hiMatch(c.company,q)+'</b><small>'
+    +esc([c.city,c.contact,c.mobile].filter(Boolean).join(', ')||'No other details')
+    +(c.lastRef?' · last quote '+esc(c.lastRef.split('/').slice(-2,-1)[0]||'')+(c.lastDate?' on '+esc(c.lastDate):'')+(c.quotes>1?' ('+c.quotes+' quotes)':''):'')+'</small></li>').join('');
+  cList.hidden=false; cIn.setAttribute('aria-expanded','true'); cIn.removeAttribute('aria-activedescendant');
+}
+function closeSuggest(){ cList.hidden=true; cIn.setAttribute('aria-expanded','false'); cIn.removeAttribute('aria-activedescendant'); suggActive=-1; }
+function moveSuggest(d){
+  if(cList.hidden) openSuggest(); if(!sugg.length) return;
+  suggActive=(suggActive+d+sugg.length)%sugg.length;
+  cList.querySelectorAll('li').forEach((li,i)=>li.setAttribute('aria-selected',String(i===suggActive)));
+  const li=$('#cs'+suggActive); cIn.setAttribute('aria-activedescendant','cs'+suggActive); if(li) li.scrollIntoView({block:'nearest'});
+}
+function pickSuggest(i){ const c=sugg[i]; if(!c) return; closeSuggest(); fillCustomer(c); renderCustPick(String(customers.indexOf(c))); }
+cIn.addEventListener('input',openSuggest);
+cIn.addEventListener('focus',()=>{ if(!cIn.value.trim()) openSuggest(); });
+cIn.addEventListener('keydown',e=>{
+  if(e.key==='ArrowDown'){ e.preventDefault(); moveSuggest(1); }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); moveSuggest(-1); }
+  else if(e.key==='Enter' && !cList.hidden && suggActive>=0){ e.preventDefault(); pickSuggest(suggActive); }
+  else if(e.key==='Escape' && !cList.hidden){ e.preventDefault(); closeSuggest(); }
+});
+cIn.addEventListener('blur',()=>setTimeout(closeSuggest,120));
+cList.addEventListener('mousedown',e=>{ const li=e.target.closest('li[data-i]'); if(!li) return; e.preventDefault(); pickSuggest(+li.dataset.i); });
+$('#custPick').addEventListener('change',e=>{
+  const c=customers[+e.target.value]; if(e.target.value===''||!c) return;
+  fillCustomer(c);
 });
 $('#custDel').addEventListener('click',()=>{
   const v=$('#custPick').value, c=customers[+v];
@@ -2164,7 +2229,7 @@ async function download(){
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(()=>URL.revokeObjectURL(url),4000);
     }
-    upsertCustomer(true);
+    upsertCustomer(true,{ref:M.ref,date:M.dateText});
     F.serial=T.serialOf(F)+1; saveFields(); fillForm(); renderRef();
     toast('Saved. Next quotation will be no. '+T.pad3(F.serial)+'.');
   }catch(e){
