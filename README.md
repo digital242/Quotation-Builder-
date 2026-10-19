@@ -24,3 +24,19 @@ npm test                         # core + Excel tests, then browser tests
   and (with LibreOffice) recalculation and one-page printing on a sample.
 - `ui-tests.mjs`: Playwright (Chromium) tests of the page: typing, picker, download, 360 px width,
   blocked localStorage, dark-mode device setting. The ExcelJS CDN is served locally in these tests.
+
+## Google Drive client database
+Every downloaded quotation can also be saved to Google Drive:
+`THERMODRAIN Quotations / CITY / CLIENT / QTN_025_Client.xlsx`, plus one row per quotation in
+`THERMODRAIN Quotations / Quotation register.csv` (opens in Google Sheets).
+
+One-time setup (company Google account):
+1. console.cloud.google.com: create a project, enable **Google Drive API**.
+2. OAuth consent screen: External, add scope `https://www.googleapis.com/auth/drive.file`, add staff as test users (or publish).
+3. Credentials, OAuth client ID, Web application. Authorised JavaScript origins: your site, e.g. `https://your-site.netlify.app`.
+4. Paste the Client ID into `GOOGLE_CLIENT_ID` near the top of `index.html` (or into the app under
+   "Google Drive client database"), deploy, then press **Connect Google Drive** in the app.
+
+The app only uses the `drive.file` permission, so it can see only the files and folders it creates.
+Everyone who connects with the same Google account shares one database.
+`tests/drive-tests.mjs` checks the folder and register logic against a stand-in Drive.
