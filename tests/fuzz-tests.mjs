@@ -33,6 +33,16 @@ function randomItem() {
       covers: 2 + Math.floor(rnd() * 5), frame: pick(['ms', 'ms', 'frp', 'none']), load: Math.floor(rnd() * 6),
       price: Math.round(20000 + rnd() * 150000), qty: 1 + Math.floor(rnd() * 10), disc: pick([0, 5, 10]) };
   }
+  if (rnd() < 0.06) {
+    return { prod: 'custom', kind: 'channel', name: pick(['FRP Drain Channel', 'GRP Trench Drain']), l: 500 + Math.floor(rnd() * 1500), w: 100 + Math.floor(rnd() * 500),
+      h: 100 + Math.floor(rnd() * 600), grate: pick(['with', 'without']), frame: 'none', load: pick([null, 2, 3, 4, 5]),
+      price: Math.round(2000 + rnd() * 30000), qty: 1 + Math.floor(rnd() * 50), disc: pick([0, 5, 10]) };
+  }
+  if (rnd() < 0.06) {
+    return { prod: 'custom', kind: 'grating', name: 'FRP Grating', l: 300 + Math.floor(rnd() * 3400), w: 300 + Math.floor(rnd() * 1200),
+      h: pick([null, 25, 38, 50]), frame: pick(['none', 'none', 'frp', 'ms']), load: pick([null, 0, 1, 2, 3, 4]),
+      price: Math.round(1000 + rnd() * 40000), qty: 1 + Math.floor(rnd() * 30), disc: pick([0, 5, 12]) };
+  }
   if (rnd() < 0.12) {
     return { prod: 'custom', name: pick(['FRP Chamber', 'FRP Inspection Chamber', 'GRP Valve Chamber']),
       l: 300 + Math.floor(rnd() * 1500), w: 300 + Math.floor(rnd() * 1500), h: 200 + Math.floor(rnd() * 1200),

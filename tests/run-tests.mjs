@@ -123,7 +123,7 @@ await test('parser: load words, boundaries and 2.5 before 5 T', () => {
   const r2 = L('solid 1500x1500 d400 2'); eq(r2.item.id, 's1500'); eq(r2.item.qty, 2);
 });
 await test('parser: errors are plain sentences', () => {
-  eq(TD.parseLine('600x600 b125').error, 'Name the product: solid top, recess, gully, air & water tight, fuel station, hinged, tank, chamber or multiple cover.');
+  eq(TD.parseLine('600x600 b125').error, 'Name the product: solid top, recess, gully, air & water tight, fuel station, hinged, tank, chamber, multiple cover, drain channel or grating.');
   eq(TD.parseLine('solid top b125 qty 3').error, 'Add the size, for example 600x600 or 900 dia.');
 });
 await test('parser: circular, × and *, twin preference, gully out-to-out map', () => {
@@ -344,7 +344,7 @@ await test('regressions: sizes are never read as quantities; fuel "x 200" is the
   const b = TD.parseLine('fuel station 900x900x200 d400'); eq(b.item.id, 's900cic'); eq(b.item.qty, 1, '200 is not a quantity');
   const c = TD.parseLine('fuel station 900 dia x 200 c250'); eq(c.item.id, 'c900cic'); eq(c.price, 51790); eq(c.item.qty, 1);
   eq(TD.parseLine('solid top 600x600 b125 4').item.qty, 4);
-  eq(TD.parseLine('solid top cover 600x600x200 b125').error, 'Three sizes were given. Use length x width for a cover, or write "chamber" for length x width x height.');
+  eq(TD.parseLine('solid top cover 600x600x200 b125').error, 'Three sizes were given. Use length x width for a cover, or write "chamber" or "drain channel" for length x width x height.');
   eq(TD.refNo({ series: 'tp 1', cityCode: 'b/lr', serial: 25, qdate: '2026-09-24' }), 'THERMODRAIN/QTN/TP1-BLR/025/2026-27');
   eq(TD.refNo({ series: '', cityCode: '', serial: '', qdate: '2027-02-01' }), 'THERMODRAIN/QTN/TP1/001/2026-27');
 });
@@ -444,6 +444,32 @@ await test('Excel: chambers, MS frame, depth, mixed discounts, USD row and addre
   ok(/^Less Discount \(avg\. /.test(ws.getCell('E' + at.disc).value));
   eq(ws.getCell('A' + at.grand).fill.fgColor.argb, 'FFFFF2CC');
   eq(at.usd, undefined, 'no USD row on a GST quotation');
+});
+await test('drain channel and grating: typed lines, checklist, wording and Excel groups', async () => {
+  const ch = TD.parseLine('drain channel 1000x300x300 D400 price 8500 qty 10');
+  ok(ch.ok, ch.error); eq(ch.item.kind, 'channel'); eq(ch.item.grate, 'with'); eq(ch.item.h, 300); eq(ch.item.qty, 10); eq(TD.unitPrice(ch.item), 8500);
+  eq(TD.defaultWording(ch.item), '1000 mm (L) x 300 mm (W) x 300 mm (D), with FRP grating');
+  const ch2 = TD.parseLine('FRP drain channel without grating 1000x200x250 price 5000 nos 4');
+  ok(ch2.ok, ch2.error); eq(ch2.item.grate, 'without'); eq(ch2.item.qty, 4); eq(ch2.item.h, 250);
+  const g = TD.parseLine('FRP grating 1000x500 38 mm thick C250 price 6500 qty 3');
+  ok(g.ok, g.error); eq(g.item.kind, 'grating'); eq(g.item.h, 38); eq(g.item.load, 3); eq(g.item.frame, 'none');
+  eq(TD.defaultWording(g.item), '1000 mm x 500 mm x 38 mm thick');
+  const g2 = TD.parseLine('grating 1220x3660x50 price 25000 qty 2 ms frame'); ok(g2.ok, g2.error); eq(g2.item.h, 50); eq(g2.item.frame, 'ms');
+  eq(TD.parseLine('gully grating 300x300 C250 qty 2').item.prod, 'gully', 'gully grating stays a gully cover');
+  eq(TD.parseLine('grating cover 600x600 b125 qty 2').item.prod, 'gully', 'grating cover stays a gully cover');
+  ok(/price/.test(TD.parseLine('drain channel 1000x300x300 qty 2').error), 'price needed');
+  ok(/length x width x depth/.test(TD.parseLine('drain channel 1000x300 price 500 qty 2').error), 'depth needed');
+  eq(TD.checkLine('drain channel 1000x300x300 price 8500 qty 10').state, 'ready');
+  eq(TD.checkLine('channel 1000x300x300 price 8500 qty 10').state, 'pending', '"channel" alone is not the full name');
+  eq(TD.checkLine('FRP grating 1000x500 price 6500 qty 3').state, 'ready');
+  const x = await makeXlsx('QTN_channel.xlsx', ['drain channel 1000x300x300 D400 price 8500 qty 10', 'drain channel without grating 1000x200x250 price 5000 qty 4',
+    'FRP grating 1000x500 38 mm thick C250 price 6500 qty 3', 'solid 600x600 b125 qty 4'], 0, true);
+  const find = txt => { let hit = null; x.ws.eachRow(row => row.eachCell(c => { if (!hit && c.value === txt) hit = c; })); return hit; };
+  ok(find('‘THERMODRAIN’ FRP DRAIN CHANNEL WITH GRATING'), 'channel group');
+  ok(find('‘THERMODRAIN’ FRP DRAIN CHANNEL WITHOUT GRATING'), 'channel without grating group');
+  ok(find('‘THERMODRAIN’ FRP GRATING WITHOUT FRAME'), 'grating group');
+  ok(find('1000 mm x 500 mm x 38 mm thick'), 'grating wording');
+  near(x.ws.getCell('H' + x.totalRowsAt.total).value.result, 85000 + 20000 + 19500 + 4 * TD.unitPrice(TD.parseLine('solid 600x600 b125 qty 4').item));
 });
 await test('Excel: US$ export quotation has US$ prices, no GST rows, and says GST not applicable', async () => {
   const x = await makeXlsx('QTN_usd.xlsx', [...FOUR, 'chamber 1000x1000x600 two sided b125 price 45000 qty 2'], undefined, 'usd', { ...FIELDS, usdRate: '88.5' });

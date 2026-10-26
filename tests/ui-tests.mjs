@@ -465,6 +465,37 @@ await test('UI: custom multi-cover manhole cover from the picker', async () => {
   await ctx.close();
 });
 
+await test('UI: drain channel and grating from the picker', async () => {
+  const { ctx, page } = await newPage();
+  await page.click('[data-prod="custom"]');
+  await page.click('[data-kind="channel"]');
+  ok(await page.isVisible('#channelWrap')); ok(await page.isHidden('#chamberWrap')); ok(await page.isHidden('#frameWrap'), 'no frame choice for a channel');
+  await page.fill('#chL', '1000'); await page.fill('#chW', '300'); await page.fill('#chH', '');
+  eq(await page.textContent('#abAdd'), 'Enter L, W and depth');
+  await page.fill('#chH', '300'); await page.click('[data-load="4"]');
+  ok(await page.isDisabled('#abAdd'), 'needs a price');
+  await page.fill('#abPriceIn', '8500'); await page.fill('#abQty', '10'); await page.dispatchEvent('#abQty', 'change');
+  eq(await page.textContent('#abAdd'), 'Add 10 to quote, ₹85,000');
+  await page.click('#abAdd');
+  eq(await page.inputValue('#abQty'), '1', 'qty resets');
+  await page.click('[data-grate="without"]'); await page.fill('#abPriceIn', '6000'); await page.click('#abAdd');
+  await page.click('[data-kind="grating"]');
+  ok(await page.isVisible('#gratingWrap')); ok(await page.isVisible('#frameWrap'));
+  eq(await page.getAttribute('[data-frame="none"]', 'aria-pressed'), 'true', 'gratings default to without frame');
+  await page.fill('#gL', '1200'); await page.fill('#gW', '600'); await page.fill('#gT', '38'); await page.click('[data-load="3"]');
+  await page.fill('#abPriceIn', '6500'); await page.click('#abAdd');
+  const M = await page.evaluate(() => window.__tdApp.model());
+  eq(M.groups.map(g => g.title).join(' | '), '‘THERMODRAIN’ FRP DRAIN CHANNEL WITH GRATING | ‘THERMODRAIN’ FRP DRAIN CHANNEL WITHOUT GRATING | ‘THERMODRAIN’ FRP GRATING WITHOUT FRAME');
+  eq(M.groups[0].items[0].wording, '1000 mm (L) x 300 mm (W) x 300 mm (D), with FRP grating');
+  eq(M.groups[2].items[0].wording, '1200 mm x 600 mm x 38 mm thick');
+  eq(M.totals.sub, 85000 + 6000 + 6500);
+  await page.reload(); await page.waitForFunction(() => !!window.__tdApp);
+  eq(await page.locator('#sumItems .item').count(), 3, 'items survive a reload');
+  eq(await page.getAttribute('[data-kind="grating"]', 'aria-pressed'), 'true', 'picker remembers the kind');
+  eq(page.errors.length, 0, page.errors.join());
+  await ctx.close();
+});
+
 await test('UI: fuel station covers in the picker (C250 / D400 only, CIC sizes)', async () => {
   const { ctx, page } = await newPage();
   await page.click('[data-prod="fuel"]');
