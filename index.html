@@ -171,6 +171,11 @@ details.more .drive-in .form-grid{padding:0}
 .drive-saved a{color:var(--blue)}
 .drive-saved .bad-t{color:var(--red)}
 
+.imp-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
+.imp-btn{min-height:38px;padding:6px 12px;font-size:13.5px}
+.imp-note{font-size:12.5px;color:var(--muted);flex:1 1 220px}
+.qa-box.drop textarea{border-color:var(--blue);background:var(--tint)}
+
 /* Picker */
 .field-label{font-weight:700;font-size:13.5px;margin:20px 0 8px;display:block;color:var(--text)}
 .prod-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
@@ -384,6 +389,11 @@ dialog.pv::backdrop{background:rgba(27,42,74,.55)}
       <div class="qa-box">
         <textarea id="quick" rows="3" aria-describedby="quickHint" autocomplete="off" spellcheck="false" placeholder="solid top 600x600 B125 qty 4&#10;water gully 395x990 5 ton qty 2&#10;chamber 1000x1000x600 two sided B125 price 45000 qty 2"></textarea>
         <button type="button" class="btn btn-primary qa-add" id="quickAdd">Add</button>
+      </div>
+      <div class="imp-row">
+        <button type="button" class="btn btn-secondary imp-btn" id="impBtn"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 18v-6"/><path d="M9 15l3-3 3 3"/></svg>Import enquiry (PDF or Excel)</button>
+        <input type="file" id="impFile" aria-label="Choose an enquiry file (PDF, Excel or CSV)" accept=".pdf,.xlsx,.xlsm,.csv,.txt,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain" hidden>
+        <span class="imp-note" id="impNote">The products found are put in the box above for you to check, then press Add. You can also drop a file on the box.</span>
       </div>
       <ul class="line-check" id="lineCheck" aria-label="Checklist for each typed line"></ul>
 
@@ -1183,6 +1193,28 @@ function parseLine(raw){
   const p=unitPrice(item);
   return {ok:true,text,item,price:p,amount:p*qty};
 }
+/* Pick product lines out of an imported enquiry / BOQ (rows of text from a PDF, Excel or CSV).
+   Keeps rows that name a product and carry a size; strips item numbers like "1.", "2)", "a)";
+   joins a product row with the next one or two rows when its size was wrapped onto them. */
+function enquiryLines(rows){
+  const clean=rows.map(r=>String(r==null?'':r).replace(/[ \t]+/g,' ').replace(/\s+/g,' ').trim());
+  const norm=l=>' '+l.toLowerCase().replace(/[×*]/g,'x')+' ';
+  const isProd=l=>PRODUCT_RES.some(([,re])=>re.test(norm(l)));
+  const hasSize=l=>/(?<![\d.])\d{3,4}(?![\d.])/.test(norm(l));
+  const out=[];
+  for(let i=0;i<clean.length;i++){
+    let l=clean[i]; if(!l) continue;
+    l=l.replace(/^(?:item\s*)?\(?(?:\d{1,2}(?:\.\d{1,2})*|[a-h]|[ivx]{1,4})[.)]?\s+(?=[a-z(])/i,'');
+    if(!isProd(l)) continue;
+    let j=i;
+    while(!hasSize(l) && j<i+2 && j+1<clean.length && clean[j+1] && !isProd(clean[j+1])){ j++; l+=' '+clean[j]; }
+    if(!hasSize(l)) continue;
+    i=j;
+    out.push(l.slice(0,300)); // repeated rows are kept: the same item can appear twice in a BOQ
+    if(out.length>=100) break;
+  }
+  return out;
+}
 /* Live checklist for one typed line: which details are present, and whether it can be added.
    Returns {parts:[{key,label,done}], state:'empty'|'pending'|'ready'|'blocked', text}. */
 /* Full product names for the checklist: a single word like "solid" or "gully" is not enough. */
@@ -1500,7 +1532,7 @@ function buildWorkbook(ExcelJS,M,logos){
 }
 
 return {LOADS,DATA,FLAGS,PRODUCTS,SHAPES,LOAD_CODE,LOAD_PRINT,PRINT_NAME,GROUP_TITLE,GROUP_NOTE,GULLY_OTO,DEFAULT_FIELDS,CUSTOMER_KEYS,COLW,NUMFMT,
-  findRow,checkLine,isCic,FUEL_INFO,isMulti,coversOf,allowedFrames,serialOf,lcFirst,isLoadIdx,isTwin,isTwinItem,priceOf,normFrame,listFrame,isManual,listPrice,unitPrice,pctOf,depthOf,itemDisc,itemSizeText,itemLoadText,itemLoadPrint,finishText,customName,groupTitle,FRAME_LABEL,usdRateOf,fmtUS,usd2,pctLabel,modeOf,linePrice,money,moneyShort,NUMFMT_USD,itemKey,groupKey,flagFor,gullyOTO,inchesOf,sizeText,loadText,loadPrint,productLabel,specText,
+  findRow,checkLine,enquiryLines,isCic,FUEL_INFO,isMulti,coversOf,allowedFrames,serialOf,lcFirst,isLoadIdx,isTwin,isTwinItem,priceOf,normFrame,listFrame,isManual,listPrice,unitPrice,pctOf,depthOf,itemDisc,itemSizeText,itemLoadText,itemLoadPrint,finishText,customName,groupTitle,FRAME_LABEL,usdRateOf,fmtUS,usd2,pctLabel,modeOf,linePrice,money,moneyShort,NUMFMT_USD,itemKey,groupKey,flagFor,gullyOTO,inchesOf,sizeText,loadText,loadPrint,productLabel,specText,
   defaultWording,wordingOf,TRANSPORT_MODES,PAY_PRESETS,transportText,paySlabsOf,slabTotal,slabProblem,paymentLines,fmtIN,rupees,rupees2,round2,ddmmyyyy,fyOf,pad3,todayISO,refNo,parseLine,describeParsed,matchSize,
   totals,autoSubject,introText,buildModel,whatsappText,wrapLines,rowHeightFor,buildWorkbook,stripB64,
   logos:{tp:LOGO_TP,td:LOGO_TD}};
@@ -1668,6 +1700,88 @@ quick.addEventListener('keydown',e=>{
 });
 $('#quickAdd').addEventListener('click',addFromText);
 renderLineCheck();
+
+/* ---------- Import an enquiry / BOQ (PDF, Excel or CSV) ----------
+   The file is read in the browser (nothing is uploaded). Rows that name a product and a
+   size are put into the type-to-add box, where the checklist shows what is ready. */
+const PDFJS='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+const userErr=msg=>Object.assign(new Error(msg),{user:true});
+let pdfLoad=null;
+function loadPdfJs(){
+  if(window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if(pdfLoad) return pdfLoad;
+  pdfLoad=new Promise((res,rej)=>{ const sc=document.createElement('script'); sc.src=PDFJS+'pdf.min.js';
+    sc.onload=()=>{ if(window.pdfjsLib){ window.pdfjsLib.GlobalWorkerOptions.workerSrc=PDFJS+'pdf.worker.min.js'; res(window.pdfjsLib); } else rej(userErr('The PDF reader did not start. Reload the page and try again.')); };
+    sc.onerror=()=>{ pdfLoad=null; rej(userErr('The PDF reader could not load. Check the internet connection.')); };
+    document.head.appendChild(sc); });
+  return pdfLoad;
+}
+async function pdfRows(buf){
+  const lib=await loadPdfJs();
+  const doc=await lib.getDocument({data:new Uint8Array(buf)}).promise;
+  const rows=[]; let chars=0;
+  for(let p=1;p<=Math.min(doc.numPages,40);p++){
+    const page=await doc.getPage(p), tc=await page.getTextContent();
+    const items=tc.items.filter(it=>it.str && it.str.trim()).map(it=>({x:it.transform[4],y:it.transform[5],s:it.str}));
+    items.sort((a,b)=>b.y-a.y||a.x-b.x);
+    let line=[], y=null;
+    const flush=()=>{ if(line.length){ line.sort((a,b)=>a.x-b.x); rows.push(line.map(i=>i.s).join(' ')); } line=[]; };
+    for(const it of items){ if(y===null || Math.abs(it.y-y)>3){ flush(); y=it.y; } line.push(it); chars+=it.s.length; }
+    flush();
+  }
+  return {rows,chars};
+}
+async function excelRows(buf){
+  if(!window.ExcelJS) throw userErr('The Excel reader has not loaded yet. Check the internet connection and try again.');
+  const wb=new window.ExcelJS.Workbook(); await wb.xlsx.load(buf);
+  const rows=[];
+  wb.eachSheet(ws=>ws.eachRow({includeEmpty:false},row=>{
+    const cells=[]; row.eachCell({includeEmpty:false},c=>{ const t=String(c.text==null?'':c.text).trim(); if(t) cells.push(t); });
+    if(cells.length>1 && /^\d{1,3}(?:\.\d{1,2})?\.?$/.test(cells[0])) cells.shift(); // serial-number column
+    rows.push(cells.join(' '));
+  }));
+  return rows;
+}
+function textRows(text){
+  return String(text).split(/\r?\n/).map(l=>{ const cells=l.split(/[,;\t]/).map(c=>c.replace(/^"|"$/g,'').trim()).filter(Boolean);
+    if(cells.length>1 && /^\d{1,3}(?:\.\d{1,2})?\.?$/.test(cells[0])) cells.shift(); return cells.join(' '); });
+}
+async function importEnquiry(file){
+  if(!file) return;
+  const name=file.name||'file', ext=(name.match(/\.([a-z0-9]+)$/i)||[,''])[1].toLowerCase();
+  if(file.size>15*1024*1024){ toast(name+' is larger than 15 MB. Use a smaller file.',true); return; }
+  const note=$('#impNote'); note.textContent='Reading '+name+'…';
+  try{
+    let rows;
+    if(ext==='pdf' || file.type==='application/pdf'){
+      const r=await pdfRows(await file.arrayBuffer());
+      if(r.chars<20) throw userErr(name+' looks like a scanned image with no text inside, so it can\'t be read. Type the items, or ask the customer for the Excel or a text PDF.');
+      rows=r.rows;
+    } else if(ext==='xlsx' || ext==='xlsm'){ rows=await excelRows(await file.arrayBuffer()); }
+    else if(ext==='xls'){ throw userErr(name+' is an old Excel 97-2003 file. Open it in Excel, save it as .xlsx, and import that.'); }
+    else if(ext==='csv' || ext==='txt'){ rows=textRows(await file.text()); }
+    else throw userErr(name+' is not a PDF, Excel (.xlsx) or CSV file.');
+    const lines=T.enquiryLines(rows);
+    if(!lines.length){ note.textContent='No products were found in '+name+'.'; toast('No manhole covers, gully covers, chambers or other products with a size were found in '+name+'. Type the items instead.',true); return; }
+    const cur=quick.value.replace(/\s+$/,'');
+    quick.value=(cur?cur+'\n':'')+lines.join('\n');
+    renderLineCheck(); saveQuote();
+    const ready=lines.filter(l=>T.checkLine(l).state==='ready').length;
+    note.textContent='From '+name+': '+plural(lines.length,'product line','product lines')+' found, '+ready+' ready. Check them and press Add.';
+    toast(plural(lines.length,'product line','product lines')+' found in '+name+'. '+(ready===lines.length?'All are ready: check them and press Add.':ready+' ready; fill in what the grey ticks ask for, then press Add.'));
+    quick.focus(); quick.scrollIntoView({block:'center',behavior:reduceMotion()?'auto':'smooth'});
+  }catch(e){
+    console.error(e);
+    note.textContent='Could not read '+name+'.';
+    toast(e&&e.user ? e.message : e&&e.name==='PasswordException' ? name+' is password protected. Ask for an unprotected copy, or type the items.' : name+' could not be read. Check that it is a normal PDF or .xlsx file.',true);
+  }
+}
+$('#impBtn').addEventListener('click',()=>$('#impFile').click());
+$('#impFile').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; importEnquiry(f); e.target.value=''; });
+const qaBox=quick.closest('.qa-box');
+['dragenter','dragover'].forEach(ev=>qaBox.addEventListener(ev,e=>{ if(e.dataTransfer && [...e.dataTransfer.types].includes('Files')){ e.preventDefault(); qaBox.classList.add('drop'); } }));
+['dragleave','drop'].forEach(ev=>qaBox.addEventListener(ev,()=>qaBox.classList.remove('drop')));
+qaBox.addEventListener('drop',e=>{ const f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0]; if(f){ e.preventDefault(); importEnquiry(f); } });
 
 /* ---------- Visual picker ---------- */
 const PICK_PRODUCTS=[...T.PRODUCTS,'custom'];
