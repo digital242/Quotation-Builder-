@@ -294,8 +294,10 @@ await test('multi-cover manhole covers are fully custom (size, covers, frame, lo
   eq(TD.defaultWording(f.item), '2400 mm x 900 mm clear opening, 4 covers with single FRP frame');
   const M = TD.buildModel([r.item, f.item, TD.parseLine('chamber 1000x1000x600 b125 price 45000').item], FIELDS, true);
   eq(M.groups.map(g => g.title).join(' | '), '‘THERMODRAIN’ FRP/GRP MULTIPLE MANHOLE COVER WITH MS FRAME | ‘THERMODRAIN’ FRP/GRP MULTIPLE MANHOLE COVER WITH FRAME | ‘THERMODRAIN’ FRP CHAMBER WITH MS FRAME');
-  ok(M.groups[0].note.startsWith('THERMODRAIN manhole covers (tested as per BS EN 124 or IS 1726) are WITH DOUBLE SEAL & CLOSED BOTTOM HIGH-STRENGTH PLASTIC ALLOY/STAINLESS STEEL SOCKET KEYHOLE LIFTING ARRANGEMENT.\nThe closed keyhole does not allow mosquito breeding'), M.groups[0].note);
-  ok(M.groups[0].note.endsWith('due to multiple lifting operations over the years.')); eq(M.groups[2].note, null);
+  eq(M.groups[0].note, null, 'manhole cover note is not repeated under each heading');
+  eq(M.footNote[0], 'THERMODRAIN manhole covers (tested as per BS EN 124 or IS 1726) are WITH DOUBLE SEAL & CLOSED BOTTOM HIGH-STRENGTH PLASTIC ALLOY/STAINLESS STEEL SOCKET KEYHOLE LIFTING ARRANGEMENT.');
+  ok(M.footNote[1].startsWith('The closed keyhole does not allow mosquito breeding') && M.footNote[1].endsWith('over the years.'));
+  eq(TD.buildModel([TD.parseLine('chamber 1000x1000x600 b125 price 45000').item], FIELDS, true).footNote, null, 'no note without a manhole cover'); eq(M.groups[2].note, null);
   ok(M.subject.includes('MULTIPLE MANHOLE COVER') && M.subject.includes('CHAMBER'), M.subject);
   ok(TD.itemKey(r.item) !== TD.itemKey({ ...r.item, covers: 4 }), 'different cover counts never merge');
 });
@@ -390,7 +392,7 @@ await test('8. 48% discount: net rate per item, GST on the net total, formulas a
   let n = 0;
   for (let r = f; r <= l; r++) { const v = H(r); if (v && v.formula) { n++; eq(v.formula, `G${r}*F${r}`); eq(typeof ws.getCell('G' + r).value, 'number', 'net rate is a plain number, list price not revealed'); near(v.result, ws.getCell('G' + r).value * ws.getCell('F' + r).value); } }
   eq(n, 4);
-  eq(ws.getCell('G' + (f + 2)).value, 6419.4, '12345 less 48%');
+  eq(ws.getCell('G' + (f + 1)).value, 6419.4, '12345 less 48%'); // title row, then the item (no note row)
 });
 await test('Excel: sheet setup (name, A4, fit 1×1, margins, gridlines, widths, print area, fonts)', async () => {
   const { ws, lastRow } = x48;
@@ -499,6 +501,15 @@ await test('gratings: close teeth for catalogue sizes (30 / 40 mm high, max 1000
   ok(find('1200 mm x 604 mm x 30 mm thick, close teeth'), 'close wording');
   ok(find('1000 mm x 500 mm, open teeth'), 'open wording');
 });
+await test('Excel: manhole cover note prints once, below the totals and above the terms', async () => {
+  const x = await makeXlsx('QTN_note.xlsx', ['solid 600x600 b125 qty 4', 'solid 600x600 b125 without frame price 15000 qty 2', 'hinged 600x600 b125 qty 1', 'recess 600x600 b125 qty 2'], 0, true);
+  const hits = []; let terms = 0;
+  x.ws.eachRow((row, rn) => row.eachCell(c => { const v = String(c.value || ''); if (v.startsWith('THERMODRAIN manhole covers') && !hits.includes(rn)) hits.push(rn); if (v === 'TERMS & CONDITIONS') terms = rn; }));
+  eq(hits.length, 1, 'once'); ok(hits[0] > x.totalRowsAt.grand && hits[0] < terms, 'between totals and terms');
+  ok(x.ws.getCell('A' + hits[0]).font.bold); ok(String(x.ws.getCell('A' + (hits[0] + 1)).value).startsWith('The closed keyhole'));
+  let recessNote = 0; x.ws.eachRow(row => row.eachCell(c => { if (c.value === 'THERMODRAIN recess covers are load tested as per BS EN 124 or IS 1726.' && c.address === c.master.address) recessNote++; }));
+  eq(recessNote, 1, 'other products keep their own note');
+});
 await test('Excel: US$ export quotation has US$ prices, no GST rows, and says GST not applicable', async () => {
   const x = await makeXlsx('QTN_usd.xlsx', [...FOUR, 'chamber 1000x1000x600 two sided b125 price 45000 qty 2'], undefined, 'usd', { ...FIELDS, usdRate: '88.5' });
   const ws = x.ws, at = x.totalRowsAt;
@@ -552,7 +563,7 @@ await test('9b. H-column formulas recalculate after a qty is edited', async () =
   if (!SO) throw new Error('LibreOffice not installed: skipped');
   const wb = new ExcelJS.Workbook(); await wb.xlsx.readFile(x48.file);
   const ws = wb.getWorksheet('Quotation');
-  const r = x48.firstItemRow + 2; // first item row (after group title + note)
+  const r = x48.firstItemRow + 1; // first item row (after the group title)
   eq(ws.getCell('G' + r).value, 6419.4); // 12345 less 48%
   ws.getCell('F' + r).value = 10; // was 4
   ws.eachRow(row => row.eachCell(c => { if (c.value && c.value.formula) c.value = { formula: c.value.formula }; })); // drop cached results

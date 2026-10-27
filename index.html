@@ -823,11 +823,12 @@ const GROUP_TITLE={
   'gully|without':'‘THERMODRAIN’ FRP WATER GULLY COVER WITHOUT FRAME (with 2 side support & inbuilt beam design)',
   'gully|with':'‘THERMODRAIN’ FRP WATER GULLY COVER WITH FRAME'
 };
-const NOTE_MHC='THERMODRAIN manhole covers (tested as per BS EN 124 or IS 1726) are WITH DOUBLE SEAL & CLOSED BOTTOM HIGH-STRENGTH PLASTIC ALLOY/STAINLESS STEEL SOCKET KEYHOLE LIFTING ARRANGEMENT.\n'
-  +'The closed keyhole does not allow mosquito breeding to happen in the chamber, doesn’t allow foreign particles to enter the chamber, and eliminates/reduces the foul smell from the chamber. '
+/* Printed once, below the totals, when the quotation has a manhole cover (solid top, hinged or multi-cover). */
+const NOTE_MHC_HEAD='THERMODRAIN manhole covers (tested as per BS EN 124 or IS 1726) are WITH DOUBLE SEAL & CLOSED BOTTOM HIGH-STRENGTH PLASTIC ALLOY/STAINLESS STEEL SOCKET KEYHOLE LIFTING ARRANGEMENT.';
+const NOTE_MHC_BODY='The closed keyhole does not allow mosquito breeding to happen in the chamber, doesn’t allow foreign particles to enter the chamber, and eliminates/reduces the foul smell from the chamber. '
   +'The high-strength plastic alloy socket keyhole lifting arrangement protects the FRP surface from damage due to multiple lifting operations over the years.';
 const GROUP_NOTE={
-  solid:NOTE_MHC, hinged:NOTE_MHC, tank:null,
+  solid:null, hinged:null, tank:null,
   aw:'THERMODRAIN air & water tight covers are load tested as per BS EN 124 or IS 1726.',
   fuel:'THERMODRAIN fuel station covers (air & water tight) are load tested as per IS 1726 & BS EN 124.',
   recess:'THERMODRAIN recess covers are load tested as per BS EN 124 or IS 1726.',
@@ -993,7 +994,7 @@ function groupTitle(key){
   if(prod==='custom') return '‘THERMODRAIN’ '+a+' '+FRAME_TITLE[b];
   return GROUP_TITLE[prod].replace(' WITH FRAME',' '+FRAME_TITLE[a]);
 }
-function groupNote(key){ const [prod,a,,kind]=key.split('|'); if(prod==='custom') return kind==='multi' ? NOTE_MHC : null; return prod==='gully' ? GROUP_NOTE['gully|'+a] : (GROUP_NOTE[prod]||null); }
+function groupNote(key){ const [prod,a,,kind]=key.split('|'); if(prod==='custom') return null; return prod==='gully' ? GROUP_NOTE['gully|'+a] : (GROUP_NOTE[prod]||null); }
 function flagFor(it){
   if(it.prod==='tank'||it.prod==='custom'||isManual(it)) return null;
   if(it.prod==='gully') return FLAGS['gully|'+it.id+'|'+it.load+'|'+normFrame('gully',it.frame)] || null;
@@ -1461,7 +1462,8 @@ function buildModel(items,f,a,b){
     city:String(f.city||'').trim() ? String(f.city).trim().toUpperCase().replace(/\.*$/,'.') : '',
     mobile:String(f.mobile||'').trim(), contact:String(f.contact||'').trim().toUpperCase(),
     subject:(String(f.subject||'').trim()||autoSubject(items,f.site)).toUpperCase(),
-    intro:introText(f), sizeHeader, groups, totals:t, totalRows, pct:t.discountPct, mode, cur, rate:mode==='usd'?rate:null, usdMissing:mode==='usd'&&!rate,
+    intro:introText(f), sizeHeader,
+    footNote: items.some(it=>it.prod==='solid'||it.prod==='hinged'||isMulti(it)) ? [NOTE_MHC_HEAD,NOTE_MHC_BODY] : null, groups, totals:t, totalRows, pct:t.discountPct, mode, cur, rate:mode==='usd'?rate:null, usdMissing:mode==='usd'&&!rate,
     priceHdr:(t.hasDisc?'NET RATE /PC':'PRICE /PC')+(cur==='USD'?' (US$)':' (RS)'), totalHdr:cur==='USD'?'TOTAL PRICE (US$)':'TOTAL PRICE (RS)',
     terms:terms.map(([k,v])=>[k,String(v||'').trim()]),
     signedBy:String(f.signedBy||'').trim().toUpperCase(), designation:String(f.designation||'').trim().toUpperCase(),
@@ -1488,6 +1490,7 @@ function whatsappText(M){
     if(r.yellow) lbl = M.mode==='gst' ? 'Grand total (incl. 18% GST)' : M.mode==='usd' ? 'Total in US$ (export, no GST)' : 'Total, GST extra';
     L.push(r.yellow ? '*'+lbl+': '+money(r.value,M.cur)+'*' : lbl+': '+money(r.value,M.cur));
   }
+  if(M.footNote){ L.push(''); L.push('*'+M.footNote[0]+'*'); L.push(M.footNote[1]); }
   L.push(''); L.push('Terms:');
   for(const [k,v] of M.terms) L.push(k+': '+v.split('\n').join('; '));
   L.push(''); L.push('Thanks & regards,'); L.push(M.signedBy); L.push(M.designation); if(M.signMobile) L.push('M.No. '+M.signMobile);
@@ -1623,6 +1626,13 @@ function buildWorkbook(ExcelJS,M,logos){
     r++;
   }
   r++;
+  // Manhole cover note, once, below the quotation
+  if(M.footNote){
+    const [head,body]=M.footNote;
+    put(r,1,8,head,{font:{bold:true},align:{wrapText:true,vertical:'top'}}); height(r,rowHeightFor(head,W(1,8),true,15)); r++;
+    put(r,1,8,body,{align:{wrapText:true,vertical:'top'}}); height(r,rowHeightFor(body,W(1,8),false,15)); r++;
+    r++;
+  }
   // Terms
   put(r,1,3,'TERMS & CONDITIONS',{font:{bold:true}}); r++;
   for(const [k,v] of M.terms){
@@ -2478,7 +2488,9 @@ function paperHTML(M){
     for(const it of g.items) h+='<tr><td colspan="2" class="c">'+it.sr+'</td><td colspan="2" class="c">'+esc(it.wording)+'</td><td class="c">'+esc(it.load)+'</td><td class="c">'+it.qty+'</td><td class="r">'+fmt(it.price)+'</td><td class="r">'+fmt(it.amount)+'</td></tr>';
   }
   for(const t of M.totalRows) h+='<tr'+(t.yellow?' class="yellow"':'')+'><td colspan="2"></td><td colspan="2"></td><td colspan="3" class="r'+(t.bold?' b':'')+'">'+esc(t.label)+'</td><td class="r'+(t.bold?' b':'')+'">'+fmt(T.round2(t.value))+'</td></tr>';
-  h+='</table><table>'+cols+'<tr class="gap"><td colspan="8"></td></tr><tr><td colspan="3" class="b">TERMS &amp; CONDITIONS</td><td colspan="5"></td></tr>';
+  h+='</table><table>'+cols+'<tr class="gap"><td colspan="8"></td></tr>';
+  if(M.footNote) h+='<tr><td colspan="8" class="b">'+esc(M.footNote[0])+'</td></tr><tr><td colspan="8">'+esc(M.footNote[1])+'</td></tr><tr class="gap"><td colspan="8"></td></tr>';
+  h+='<tr><td colspan="3" class="b">TERMS &amp; CONDITIONS</td><td colspan="5"></td></tr>';
   for(const [k,v] of M.terms) h+='<tr><td colspan="3"></td><td style="vertical-align:top">'+esc(k)+'</td><td colspan="4">: '+esc(v).replace(/\n/g,'<br>&nbsp;&nbsp;')+'</td></tr>';
   h+='<tr class="gap"><td colspan="8"></td></tr><tr><td colspan="8">Thanks &amp; Regards,</td></tr>';
   h+='<tr><td colspan="8" style="height:56px">'+(tp?'<img alt="" src="'+tp+'" style="height:46px;width:auto">':'')+'</td></tr><tr class="gap"><td colspan="8"></td></tr>';
