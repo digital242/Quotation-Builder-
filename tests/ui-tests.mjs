@@ -169,8 +169,10 @@ await test('UI 8: download .xlsx (48% discount), filename, formulas, serial +1',
   const wb = new ExcelJS.Workbook(); await wb.xlsx.readFile(file);
   const ws = wb.getWorksheet('Quotation');
   const labels = []; ws.eachRow((row, rn) => { const v = row.getCell(5).value; if (typeof v === 'string' && /TOTAL|Discount|GST @/.test(v)) labels.push([v, row.getCell(8).value, rn]); });
-  eq(labels.map(l => l[0]).join(' | '), 'TOTAL | Less Discount @48% | TOTAL | ADD : GST @ 18% | GRAND TOTAL (INCL. 18% GST)');
-  eq(labels[4][1].result, 163843.47);
+  eq(labels.map(l => l[0]).join(' | '), 'TOTAL | ADD : GST @ 18% | GRAND TOTAL (INCL. 18% GST)', 'lines at net rate, GST on the net total');
+  eq(labels[0][1].result, 138850.4); eq(labels[2][1].result, 163843.47);
+  const vals = []; ws.eachRow(row => row.eachCell(c => vals.push(c.value)));
+  ok(vals.includes('NET RATE /PC (RS)') && vals.includes(6419.4), 'net rate column (12345 less 48%)');
   eq(await page.inputValue('#f_serial'), '26');
   eq(await page.textContent('#hdrRef'), 'THERMODRAIN/QTN/TP1-BGLR/026/2026-27');
   ok((await page.locator('#toasts .toast').allTextContents()).some(t => t === 'Saved. Next quotation will be no. 026.'));
@@ -374,7 +376,7 @@ await test('UI: per-item discounts, average discount, apply to all; US$ export m
   const file = path.join(OUT, 'ui-usd.xlsx'); await dl.saveAs(file);
   const wb = new ExcelJS.Workbook(); await wb.xlsx.readFile(file); const ws = wb.getWorksheet('Quotation');
   const all = []; ws.eachRow(row => row.eachCell(c => all.push(String(c.value && c.value.formula ? '' : c.value))));
-  ok(all.includes('PRICE /PC (US$)') && all.includes('TOTAL (US$)'), 'US$ quotation');
+  ok(all.includes('NET RATE /PC (US$)') && all.includes('TOTAL (US$)'), 'US$ quotation with net rates');
   ok(!all.some(v => /ADD : GST|INCL\. 18% GST/.test(v)), 'no GST rows');
   // back to GST: USD disappears again
   await page.click('#modeToggle');

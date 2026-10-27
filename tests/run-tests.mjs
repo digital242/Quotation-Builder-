@@ -246,11 +246,16 @@ await test('per-item discounts and the average discount', () => {
   near(t.sub, 49380 + 70960); near(t.disc, 4938 + 14192); eq(t.uniformPct, null);
   near(t.avgPct, (4938 + 14192) / 120340 * 100);
   const M = TD.buildModel(items, FIELDS, true);
-  eq(M.totalRows[1].label, 'Less Discount (avg. 15.90%)');
+  // each line is quoted at its net rate; GST is on the net total, no separate discount row
+  eq(M.totalRows.map(r => r.label).join(' | '), 'TOTAL | ADD : GST @ 18% | GRAND TOTAL (INCL. 18% GST)');
+  eq(M.priceHdr, 'NET RATE /PC (RS)');
+  const rows = M.groups.flatMap(g => g.items);
+  eq(rows[0].price, 11110.5); eq(rows[0].list, 12345); eq(rows[0].amount, 44442);
+  near(M.totalRows[0].value, 44442 + 70960 * 0.8); near(M.totalRows[1].value, (44442 + 56768) * 0.18);
+  eq(TD.buildModel([TD.parseLine('solid 600x600 b125 qty 4').item], FIELDS, true).priceHdr, 'PRICE /PC (RS)', 'no discount: plain price');
   eq(TD.parseLine('solid 600x600 b125 qty 4 10% disc').item.disc, 10);
   eq(TD.parseLine('solid 600x600 b125 qty 4 discount 12.5').item.disc, 12.5);
-  const same = items.map(i => ({ ...i, disc: 15 }));
-  eq(TD.buildModel(same, FIELDS, true).totalRows[1].label, 'Less Discount @15%');
+  eq(TD.netPrice(999.99, 33), 669.99, 'net rate rounded to the paisa');
 });
 await test('GST and USD never mix: ₹ + GST, ₹ GST extra, or US$ export without GST', () => {
   const items = FOUR.map(l => TD.parseLine(l).item);
@@ -289,7 +294,8 @@ await test('multi-cover manhole covers are fully custom (size, covers, frame, lo
   eq(TD.defaultWording(f.item), '2400 mm x 900 mm clear opening, 4 covers with single FRP frame');
   const M = TD.buildModel([r.item, f.item, TD.parseLine('chamber 1000x1000x600 b125 price 45000').item], FIELDS, true);
   eq(M.groups.map(g => g.title).join(' | '), '‘THERMODRAIN’ FRP/GRP MULTIPLE MANHOLE COVER WITH MS FRAME | ‘THERMODRAIN’ FRP/GRP MULTIPLE MANHOLE COVER WITH FRAME | ‘THERMODRAIN’ FRP CHAMBER WITH MS FRAME');
-  eq(M.groups[0].note, 'THERMODRAIN manhole covers are load tested as per BS EN 124 or IS 1726.'); eq(M.groups[2].note, null);
+  ok(M.groups[0].note.startsWith('THERMODRAIN manhole covers (tested as per BS EN 124 or IS 1726) are WITH DOUBLE SEAL & CLOSED BOTTOM HIGH-STRENGTH PLASTIC ALLOY/STAINLESS STEEL SOCKET KEYHOLE LIFTING ARRANGEMENT.\nThe closed keyhole does not allow mosquito breeding'), M.groups[0].note);
+  ok(M.groups[0].note.endsWith('due to multiple lifting operations over the years.')); eq(M.groups[2].note, null);
   ok(M.subject.includes('MULTIPLE MANHOLE COVER') && M.subject.includes('CHAMBER'), M.subject);
   ok(TD.itemKey(r.item) !== TD.itemKey({ ...r.item, covers: 4 }), 'different cover counts never merge');
 });
@@ -363,26 +369,28 @@ const ALL = [...FOUR, 'air water tight 750x750 c250 3 nos', 'water gully 395x990
   'hinged 600 b125 qty 1', 'solid 900x900 2.5 t twin qty 1'];
 
 let x48;
-await test('8. 48% discount: total rows, labels, formulas and computed results', async () => {
+await test('8. 48% discount: net rate per item, GST on the net total, formulas and computed results', async () => {
   x48 = await makeXlsx('QTN_discount48.xlsx', FOUR, 48, true);
   const { ws, totalRowsAt: at, firstItemRow: f, lastItemRow: l } = x48;
-  const rows = ['total', 'disc', 'after', 'gst', 'grand'].map(k => at[k]);
-  rows.forEach((r, i) => i && eq(r, rows[i - 1] + 1, 'consecutive total rows'));
+  eq(Object.keys(at).join(','), 'total,gst,grand');
+  eq(at.gst, at.total + 1); eq(at.grand, at.gst + 1);
   const lab = r => ws.getCell('E' + r).value;
-  eq(lab(at.total), 'TOTAL'); eq(lab(at.disc), 'Less Discount @48%'); eq(lab(at.after), 'TOTAL');
-  eq(lab(at.gst), 'ADD : GST @ 18%'); eq(lab(at.grand), 'GRAND TOTAL (INCL. 18% GST)');
-  ok(ws.getCell('E' + at.after).font.bold, 'TOTAL after discount bold');
-  ok(!ws.getCell('E' + at.total).font.bold, 'first TOTAL not bold');
+  eq(lab(at.total), 'TOTAL'); eq(lab(at.gst), 'ADD : GST @ 18%'); eq(lab(at.grand), 'GRAND TOTAL (INCL. 18% GST)');
+  let hdr = null; ws.eachRow(row => row.eachCell(c => { if (c.value === 'NET RATE /PC (RS)') hdr = c; })); ok(hdr, 'NET RATE header');
   const H = r => ws.getCell('H' + r).value;
-  eq(H(at.total).formula, `SUM(H${f}:H${l})`); near(H(at.total).result, 267020);
-  eq(H(at.disc).formula, `H${at.total}*48%`); near(H(at.disc).result, 128169.6);
-  eq(H(at.after).formula, `H${at.total}-H${at.disc}`); near(H(at.after).result, 138850.4);
-  eq(H(at.gst).formula, `H${at.after}*18%`); near(H(at.gst).result, 24993.07);
-  eq(H(at.grand).formula, `H${at.after}+H${at.gst}`); near(H(at.grand).result, 163843.47);
+  // independent net total: each list price less 48%, to the paisa, times qty
+  let net = 0; for (const ln of FOUR) { const it = TD.parseLine(ln).item; net += Math.round(TD.unitPrice(it) * 52) / 100 * it.qty; }
+  ok(net < 267020 * 0.53 && net > 267020 * 0.51, 'net about 52% of 267020');
+  eq(H(at.total).formula, `SUM(H${f}:H${l})`); near(H(at.total).result, net);
+  eq(H(at.gst).formula, `H${at.total}*18%`); near(H(at.gst).result, Math.round(net * 18) / 100);
+  eq(H(at.grand).formula, `H${at.total}+H${at.gst}`); near(H(at.grand).result, Math.round(net * 118) / 100);
   for (let c = 1; c <= 8; c++) eq(ws.getCell(at.grand, c).fill?.fgColor?.argb, 'FFFFF2CC', 'yellow fill col ' + c);
   ok(!ws.getCell('H' + at.gst).fill || ws.getCell('H' + at.gst).fill.pattern === 'none', 'GST row not yellow');
   eq(ws.getRow(at.grand).height, 20);
-  for (let r = f; r <= l; r++) { const v = H(r); if (v && v.formula) { eq(v.formula, `G${r}*F${r}`); near(v.result, ws.getCell('G' + r).value * ws.getCell('F' + r).value); } }
+  let n = 0;
+  for (let r = f; r <= l; r++) { const v = H(r); if (v && v.formula) { n++; eq(v.formula, `G${r}*F${r}`); eq(typeof ws.getCell('G' + r).value, 'number', 'net rate is a plain number, list price not revealed'); near(v.result, ws.getCell('G' + r).value * ws.getCell('F' + r).value); } }
+  eq(n, 4);
+  eq(ws.getCell('G' + (f + 2)).value, 6419.4, '12345 less 48%');
 });
 await test('Excel: sheet setup (name, A4, fit 1×1, margins, gridlines, widths, print area, fonts)', async () => {
   const { ws, lastRow } = x48;
@@ -438,10 +446,9 @@ await test('Excel: chambers, MS frame, depth, mixed discounts, USD row and addre
   ok(find('‘THERMODRAIN’ FRP/GRP SOLID TOP MANHOLE COVER WITHOUT FRAME'), 'without-frame group');
   ok(find('1000 mm (L) x 1000 mm (W) x 600 mm (H), two-sided finish'), 'chamber wording');
   ok(find('600 mm x 600 mm (24" x 24") clear opening, recess depth 75 mm'), 'depth wording');
-  const disc = ws.getCell('H' + at.disc).value;
-  ok(/^H\d+\*10%\+H\d+\*20%$/.test(disc.formula), disc.formula);
-  near(disc.result, 4938 + 33850 * 0.2);
-  ok(/^Less Discount \(avg\. /.test(ws.getCell('E' + at.disc).value));
+  eq(at.disc, undefined, 'no discount row: lines are at net rate');
+  near(ws.getCell('H' + at.total).value.result, 49380 * 0.9 + 33850 * 0.8 + 90000 + 30000);
+  ok(find('NET RATE /PC (RS)'), 'net rate header');
   eq(ws.getCell('A' + at.grand).fill.fgColor.argb, 'FFFFF2CC');
   eq(at.usd, undefined, 'no USD row on a GST quotation');
 });
@@ -546,7 +553,7 @@ await test('9b. H-column formulas recalculate after a qty is edited', async () =
   const wb = new ExcelJS.Workbook(); await wb.xlsx.readFile(x48.file);
   const ws = wb.getWorksheet('Quotation');
   const r = x48.firstItemRow + 2; // first item row (after group title + note)
-  eq(ws.getCell('G' + r).value, 12345);
+  eq(ws.getCell('G' + r).value, 6419.4); // 12345 less 48%
   ws.getCell('F' + r).value = 10; // was 4
   ws.eachRow(row => row.eachCell(c => { if (c.value && c.value.formula) c.value = { formula: c.value.formula }; })); // drop cached results
   const edited = path.join(OUT, 'edited.xlsx'); await wb.xlsx.writeFile(edited);
@@ -556,8 +563,10 @@ await test('9b. H-column formulas recalculate after a qty is edited', async () =
   const line = csv.find(c => c.includes('600 mm x 600 mm (24" x 24") clear opening') || c.some(v => v.includes('600 mm x 600 mm')));
   ok(line, 'item line in csv');
   const grand = fs.readFileSync(path.join(OUT, 'edited.csv'), 'utf8').split('\n').find(l => l.includes('GRAND TOTAL'));
-  // new subtotal = 267020 + 6*12345 = 341090; after 48% = 177366.8; +18% = 209292.82
-  ok(/209[,]?292\.82/.test(grand.replace(/"/g, '')), 'grand total recalculated: ' + grand);
+  const before = x48.ws.getCell('H' + x48.totalRowsAt.total).value.result;
+  const want = Math.round((before + 6 * 6419.4) * 118) / 100; // 6 more pieces at the net rate, +18%
+  const got = +grand.replace(/"/g, '').split(',').filter(Boolean).join('').match(/[\d.]+$/)[0];
+  near(got, want, 'grand total recalculated: ' + grand);
 });
 
 await test('9c. mixed-discount formulas recalculate in LibreOffice', async () => {
@@ -568,10 +577,10 @@ await test('9c. mixed-discount formulas recalculate in LibreOffice', async () =>
   const f = path.join(OUT, 'new_nocache.xlsx'); await wb.xlsx.writeFile(f);
   convert(f, 'csv', OUT);
   const csv = fs.readFileSync(path.join(OUT, 'new_nocache.csv'), 'utf8');
-  // gross 49380 + 33850 + 90000 + 30000 = 203230; disc 4938 + 6770 = 11708; base 191522; gst 34473.96; grand 225995.96; usd 2553.63
+  // net 44442 + 27080 + 90000 + 30000 = 191522; gst 34473.96; grand 225995.96
   const val = lbl => (csv.split('\n').find(l => l.includes(lbl)) || '').replace(/"/g, '');
   const num = lbl => +val(lbl).split(',').filter(Boolean).pop().replace(/[^\d.]/g, '');
-  near(num('Less Discount'), 11708); near(num('GRAND TOTAL (INCL'), 225995.96);
+  near(num('GRAND TOTAL (INCL'), 225995.96);
 });
 
 console.log(results.join('\n'));

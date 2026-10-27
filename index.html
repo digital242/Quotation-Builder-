@@ -823,7 +823,9 @@ const GROUP_TITLE={
   'gully|without':'‘THERMODRAIN’ FRP WATER GULLY COVER WITHOUT FRAME (with 2 side support & inbuilt beam design)',
   'gully|with':'‘THERMODRAIN’ FRP WATER GULLY COVER WITH FRAME'
 };
-const NOTE_MHC='THERMODRAIN manhole covers are load tested as per BS EN 124 or IS 1726.';
+const NOTE_MHC='THERMODRAIN manhole covers (tested as per BS EN 124 or IS 1726) are WITH DOUBLE SEAL & CLOSED BOTTOM HIGH-STRENGTH PLASTIC ALLOY/STAINLESS STEEL SOCKET KEYHOLE LIFTING ARRANGEMENT.\n'
+  +'The closed keyhole does not allow mosquito breeding to happen in the chamber, doesn’t allow foreign particles to enter the chamber, and eliminates/reduces the foul smell from the chamber. '
+  +'The high-strength plastic alloy socket keyhole lifting arrangement protects the FRP surface from damage due to multiple lifting operations over the years.';
 const GROUP_NOTE={
   solid:NOTE_MHC, hinged:NOTE_MHC, tank:null,
   aw:'THERMODRAIN air & water tight covers are load tested as per BS EN 124 or IS 1726.',
@@ -1388,16 +1390,20 @@ function describeParsed(r){
 function modeOf(x){ if(x===true||x==='gst') return 'gst'; if(x==='usd') return 'usd'; return 'nogst'; }
 function itemDisc(it,dflt){ return it.disc===undefined||it.disc===null||it.disc==='' ? pctOf(dflt) : pctOf(it.disc); }
 function linePrice(it,mode,rate){ const p=unitPrice(it)||0; return mode==='usd' ? (rate>0 ? round2(p/rate) : 0) : p; }
+/* Net rate per piece after the item's discount, to the paisa / cent. Amounts are net rate x qty. */
+function netPrice(price,pct){ return pct>0 ? round2(price*(100-pct)/100) : price; }
 function totals(items,a,b,rate){
   const two=b===undefined, dAll=two?0:a, mode=modeOf(two?a:b);
-  let sub=0, disc=0; const pcts=[];
+  let sub=0, base=0; const pcts=[];
   for(const it of items){
-    const g=linePrice(it,mode,rate)*it.qty, d=itemDisc(it,dAll);
-    sub+=g; disc+=g*d/100; pcts.push(d);
+    const p=linePrice(it,mode,rate), d=itemDisc(it,dAll);
+    sub+=p*it.qty; base+=netPrice(p,d)*it.qty; pcts.push(d);
   }
+  sub=round2(sub); base=round2(base);
+  const disc=round2(sub-base);
   const uniform = pcts.length && pcts.every(p=>p===pcts[0]) ? pcts[0] : null;
   const avg = sub>0 ? disc/sub*100 : 0;
-  const base=sub-disc, g=mode==='gst'?base*0.18:0;
+  const g=mode==='gst'?base*0.18:0;
   return {sub, disc, base, gst:g, grand:base+g, mode, gstOn:mode==='gst', cur:mode==='usd'?'USD':'INR', rate:mode==='usd'?rate:null,
     uniformPct:uniform, avgPct:avg, discountPct:uniform!==null?uniform:round2(avg), hasDisc:disc>0};
 }
@@ -1431,18 +1437,15 @@ function buildModel(items,f,a,b){
   }
   for(const g of groups){
     for(const it of items){ if(groupKey(it)!==g.key) continue;
-      const price=linePrice(it,mode,rate);
-      g.items.push({sr:++sr,wording:wordingOf(it),load:itemLoadPrint(it),qty:it.qty,price,amount:price*it.qty,disc:itemDisc(it,dAll),src:it});
+      const list=linePrice(it,mode,rate), disc=itemDisc(it,dAll), price=netPrice(list,disc);
+      g.items.push({sr:++sr,wording:wordingOf(it),load:itemLoadPrint(it),qty:it.qty,list,price,amount:round2(price*it.qty),disc,src:it});
     }
   }
   const nG=items.filter(i=>i.prod==='gully').length;
   const sizeHeader = nG===items.length && nG>0 ? 'OUT TO OUT SIZE' : (nG===0 ? 'FRAME OPENING SIZE' : 'SIZE');
   const t=totals(items,dAll,mode,rate);
-  const totalRows=[{key:'total',label:'TOTAL',value:t.sub}];
-  if(t.hasDisc){
-    const lbl = t.uniformPct!==null ? 'Less Discount @'+pctLabel(t.uniformPct)+'%' : 'Less Discount (avg. '+fmtIN(t.avgPct,2)+'%)';
-    totalRows.push({key:'disc',label:lbl,value:t.disc}); totalRows.push({key:'after',label:'TOTAL',value:t.base,bold:true});
-  }
+  // prices are net rates (after each item's discount), so GST is worked out on this total
+  const totalRows=[{key:'total',label:'TOTAL',value:t.base}];
   if(t.gstOn){ totalRows.push({key:'gst',label:'ADD : GST @ 18%',value:t.gst}); totalRows.push({key:'grand',label:'GRAND TOTAL (INCL. 18% GST)',value:t.grand}); }
   const last=totalRows[totalRows.length-1]; last.bold=true; last.yellow=true;
   if(mode==='usd') last.label='TOTAL (US$)';
@@ -1459,7 +1462,7 @@ function buildModel(items,f,a,b){
     mobile:String(f.mobile||'').trim(), contact:String(f.contact||'').trim().toUpperCase(),
     subject:(String(f.subject||'').trim()||autoSubject(items,f.site)).toUpperCase(),
     intro:introText(f), sizeHeader, groups, totals:t, totalRows, pct:t.discountPct, mode, cur, rate:mode==='usd'?rate:null, usdMissing:mode==='usd'&&!rate,
-    priceHdr:cur==='USD'?'PRICE /PC (US$)':'PRICE /PC (RS)', totalHdr:cur==='USD'?'TOTAL PRICE (US$)':'TOTAL PRICE (RS)',
+    priceHdr:(t.hasDisc?'NET RATE /PC':'PRICE /PC')+(cur==='USD'?' (US$)':' (RS)'), totalHdr:cur==='USD'?'TOTAL PRICE (US$)':'TOTAL PRICE (RS)',
     terms:terms.map(([k,v])=>[k,String(v||'').trim()]),
     signedBy:String(f.signedBy||'').trim().toUpperCase(), designation:String(f.designation||'').trim().toUpperCase(),
     signMobile:String(f.signMobile||'').trim(),
@@ -1477,7 +1480,7 @@ function whatsappText(M){
   L.push('Sub: '+M.subject); L.push('');
   for(const g of M.groups){
     L.push('*'+g.title+'*');
-    for(const r of g.items) L.push(r.sr+'. '+r.wording+', '+r.load+': '+r.qty+' nos × '+moneyShort(r.price,M.cur)+' = '+money(r.amount,M.cur)+(r.disc>0&&M.totals.uniformPct===null?' (less '+pctLabel(r.disc)+'%)':''));
+    for(const r of g.items) L.push(r.sr+'. '+r.wording+', '+r.load+': '+r.qty+' nos × '+moneyShort(r.price,M.cur)+' = '+money(r.amount,M.cur)+(r.disc>0?' (net rate after '+pctLabel(r.disc)+'% discount)':''));
     L.push('');
   }
   for(const r of M.totalRows){
@@ -1608,9 +1611,6 @@ function buildWorkbook(ExcelJS,M,logos){
   for(const t of M.totalRows){
     let formula;
     if(t.key==='total') formula='SUM(H'+first+':H'+lastItem+')';
-    else if(t.key==='disc') formula = M.totals.uniformPct!==null ? 'H'+at.total+'*'+pctLabel(M.totals.uniformPct)+'%'
-      : M.groups.flatMap(g=>g.items).filter(x=>x.disc>0).map(x=>'H'+x.row+'*'+pctLabel(x.disc)+'%').join('+');
-    else if(t.key==='after') formula='H'+at.total+'-H'+at.disc;
     else if(t.key==='gst') formula='H'+(at.after||at.total)+'*18%';
     else if(t.key==='grand') formula='H'+(at.after||at.total)+'+H'+at.gst;
     at[t.key]=r;
@@ -1645,7 +1645,7 @@ function buildWorkbook(ExcelJS,M,logos){
 }
 
 return {LOADS,DATA,FLAGS,PRODUCTS,SHAPES,LOAD_CODE,LOAD_PRINT,PRINT_NAME,GROUP_TITLE,GROUP_NOTE,GULLY_OTO,DEFAULT_FIELDS,CUSTOMER_KEYS,COLW,NUMFMT,
-  findRow,checkLine,enquiryLines,isCic,FUEL_INFO,isMulti,kindOf,isChamber,thickOf,teethInfo,teethOf,CLOSE_TEETH_SIZES,grateText,CUSTOM_KINDS,CUSTOM_DEFAULT_NAME,coversOf,allowedFrames,serialOf,lcFirst,isLoadIdx,isTwin,isTwinItem,priceOf,normFrame,listFrame,isManual,listPrice,unitPrice,pctOf,depthOf,itemDisc,itemSizeText,itemLoadText,itemLoadPrint,finishText,customName,groupTitle,FRAME_LABEL,usdRateOf,fmtUS,usd2,pctLabel,modeOf,linePrice,money,moneyShort,NUMFMT_USD,itemKey,groupKey,flagFor,gullyOTO,inchesOf,sizeText,loadText,loadPrint,productLabel,specText,
+  netPrice,findRow,checkLine,enquiryLines,isCic,FUEL_INFO,isMulti,kindOf,isChamber,thickOf,teethInfo,teethOf,CLOSE_TEETH_SIZES,grateText,CUSTOM_KINDS,CUSTOM_DEFAULT_NAME,coversOf,allowedFrames,serialOf,lcFirst,isLoadIdx,isTwin,isTwinItem,priceOf,normFrame,listFrame,isManual,listPrice,unitPrice,pctOf,depthOf,itemDisc,itemSizeText,itemLoadText,itemLoadPrint,finishText,customName,groupTitle,FRAME_LABEL,usdRateOf,fmtUS,usd2,pctLabel,modeOf,linePrice,money,moneyShort,NUMFMT_USD,itemKey,groupKey,flagFor,gullyOTO,inchesOf,sizeText,loadText,loadPrint,productLabel,specText,
   defaultWording,wordingOf,TRANSPORT_MODES,PAY_PRESETS,transportText,paySlabsOf,slabTotal,slabProblem,paymentLines,fmtIN,rupees,rupees2,round2,ddmmyyyy,fyOf,pad3,todayISO,refNo,parseLine,describeParsed,matchSize,
   totals,autoSubject,introText,buildModel,whatsappText,wrapLines,rowHeightFor,buildWorkbook,stripB64,
   logos:{tp:LOGO_TP,td:LOGO_TD}};
@@ -2303,7 +2303,7 @@ function renderSummary(){
   } else {
     box.innerHTML=Q.items.map(it=>{
       const price=T.unitPrice(it)||0, flag=T.flagFor(it), manual=T.isManual(it);
-      const gross=price*it.qty, net=gross*(1-(it.disc||0)/100);
+      const gross=price*it.qty, net=T.netPrice(price,it.disc||0)*it.qty;
       return '<div class="item" data-uid="'+it.uid+'">'
         +'<span class="ic">'+ICON[it.prod]+'</span>'
         +'<div><div class="nm">'+esc(T.productLabel(it))+'</div><div class="sp">'+esc(T.specText(it))+'</div></div>'
@@ -2330,7 +2330,7 @@ function renderSummary(){
 function rateNow(){ return T.usdRateOf(F); }
 function curNow(){ return Q.mode==='usd' ? 'USD' : 'INR'; }
 function amtHTML(it){
-  const gross=T.linePrice(it,Q.mode,rateNow())*it.qty, net=gross*(1-(it.disc||0)/100);
+  const lp=T.linePrice(it,Q.mode,rateNow()), gross=lp*it.qty, net=T.netPrice(lp,it.disc||0)*it.qty;
   return (it.disc>0?'<span class="gross num">'+esc(T.moneyShort(gross,curNow()))+'</span>':'')+'<span class="amt num">'+esc(T.moneyShort(net,curNow()))+'</span>';
 }
 /* Update one row in place (keeps focus and clicks working while typing in the list). */
@@ -2474,7 +2474,7 @@ function paperHTML(M){
   h+='<tr class="hdr"><td colspan="2">SR. NO.</td><td colspan="2">'+esc(M.sizeHeader)+'</td><td>LOAD BEARING</td><td>QTY (NOS)</td><td>'+esc(M.priceHdr)+'</td><td>'+esc(M.totalHdr)+'</td></tr>';
   for(const g of M.groups){
     h+='<tr><td colspan="8" class="c b">'+esc(g.title)+'</td></tr>';
-    if(g.note) h+='<tr><td colspan="8" class="c">'+esc(g.note)+'</td></tr>';
+    if(g.note) h+='<tr><td colspan="8" class="c">'+esc(g.note).replace(/\n/g,'<br>')+'</td></tr>';
     for(const it of g.items) h+='<tr><td colspan="2" class="c">'+it.sr+'</td><td colspan="2" class="c">'+esc(it.wording)+'</td><td class="c">'+esc(it.load)+'</td><td class="c">'+it.qty+'</td><td class="r">'+fmt(it.price)+'</td><td class="r">'+fmt(it.amount)+'</td></tr>';
   }
   for(const t of M.totalRows) h+='<tr'+(t.yellow?' class="yellow"':'')+'><td colspan="2"></td><td colspan="2"></td><td colspan="3" class="r'+(t.bold?' b':'')+'">'+esc(t.label)+'</td><td class="r'+(t.bold?' b':'')+'">'+fmt(T.round2(t.value))+'</td></tr>';

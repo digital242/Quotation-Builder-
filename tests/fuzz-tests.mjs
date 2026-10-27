@@ -73,6 +73,20 @@ const FIELDS = { company: 'Fuzz Test Co', city: 'Pune', cityCode: 'PNQ', contact
   site: 'Plant 4', enqBy: 'Email', enqDate: '2026-10-01', serial: 7, qdate: '2026-10-13', usdRate: '88.37',
   paySlabs: [{ pct: 30, stage: 'ADVANCE' }, { pct: 70, stage: 'BEFORE DISPATCH' }] };
 
+// CSV rows, keeping line breaks inside quoted cells (the group notes have them)
+function parseCsv(text) {
+  const rows = []; let row = [], cell = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) { if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; }
+    else if (ch === '"') q = true;
+    else if (ch === ',') { row.push(cell); cell = ''; }
+    else if (ch === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; }
+    else if (ch !== '\r') cell += ch;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  return rows;
+}
 const N = 60, SAMPLE = 8;
 for (let q = 0; q < N; q++) {
   const n = 1 + Math.floor(rnd() * 9);
@@ -84,11 +98,14 @@ for (let q = 0; q < N; q++) {
   let sub = 0, disc = 0;
   for (const it of items) {
     const p = mode === 'usd' ? r2(TD.unitPrice(it) / rate) : TD.unitPrice(it);
-    sub += p * it.qty; disc += p * it.qty * (it.disc || 0) / 100;
+    const net = it.disc > 0 ? Math.round(p * (100 - it.disc)) / 100 : p; // net rate per piece, to the paisa
+    sub += p * it.qty; disc += (p - net) * it.qty;
   }
   const base = sub - disc, gst = mode === 'gst' ? base * 0.18 : 0, grand = base + gst;
   checks++; if (!near(M.totals.sub, sub)) fail(q, `sub ${M.totals.sub} != ${sub}`);
   checks++; if (!near(M.totals.grand, grand)) fail(q, `grand ${M.totals.grand} != ${grand}`);
+  checks++; if (!near(M.totals.base, base)) fail(q, `net total ${M.totals.base} != ${base}`);
+  checks++; if (M.totalRows.some(r => /discount/i.test(r.label))) fail(q, 'discount row in the quotation');
   checks++; if (mode !== 'gst' && M.totals.gst !== 0) fail(q, 'GST charged outside GST mode');
   checks++; if (mode === 'gst' && M.totalRows.some(r => /US\$|USD/.test(r.label))) fail(q, 'USD shown in GST mode');
   checks++; if (mode === 'usd' && M.totalRows.some(r => /GST/.test(r.label))) fail(q, 'GST row in USD mode');
@@ -116,10 +133,9 @@ for (let q = 0; q < N; q++) {
     const nc = path.join(OUT, `fuzz_${q}_nc.xlsx`); await wb2.xlsx.writeFile(nc);
     const prof = 'file://' + path.join(os.tmpdir(), 'td-lo-profile');
     execFileSync(SO, ['-env:UserInstallation=' + prof, '--headless', '--convert-to', 'csv:Text - txt - csv (StarCalc):44,34,76,1,,0,false,true,false,false', '--outdir', OUT, nc], { stdio: 'pipe', timeout: 120000 });
-    const lines = fs.readFileSync(nc.replace('.xlsx', '.csv'), 'utf8').split('\n');
+    const rows = parseCsv(fs.readFileSync(nc.replace('.xlsx', '.csv'), 'utf8'));
     for (const [rn, exp] of Object.entries(expected)) {
-      const cells = (lines[rn - 1] || '').match(/("([^"]|"")*"|[^,]*)(,|$)/g) || [];
-      const raw = (cells[7] || '').replace(/[",]/g, '').replace(/[^\d.\-]/g, '');
+      const raw = ((rows[rn - 1] || [])[7] || '').replace(/[^\d.\-]/g, '');
       checks++; if (!near(+raw, exp)) fail(q, `LibreOffice row ${rn}: ${raw} != ${exp}`);
     }
     execFileSync(SO, ['-env:UserInstallation=' + prof, '--headless', '--convert-to', 'pdf', '--outdir', OUT, file], { stdio: 'pipe', timeout: 120000 });
