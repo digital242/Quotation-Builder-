@@ -482,12 +482,14 @@ await test('UI: drain channel and grating from the picker', async () => {
   await page.click('[data-kind="grating"]');
   ok(await page.isVisible('#gratingWrap')); ok(await page.isVisible('#frameWrap'));
   eq(await page.getAttribute('[data-frame="none"]', 'aria-pressed'), 'true', 'gratings default to without frame');
+  ok((await page.textContent('#gTeeth')).startsWith('Close teeth'), 'default size is close teeth');
   await page.fill('#gL', '1200'); await page.fill('#gW', '600'); await page.fill('#gT', '38'); await page.click('[data-load="3"]');
+  ok((await page.textContent('#gTeeth')).includes('Nearest close-teeth sizes: width 564 or 604'), await page.textContent('#gTeeth'));
   await page.fill('#abPriceIn', '6500'); await page.click('#abAdd');
   const M = await page.evaluate(() => window.__tdApp.model());
-  eq(M.groups.map(g => g.title).join(' | '), '‘THERMODRAIN’ FRP DRAIN CHANNEL WITH GRATING | ‘THERMODRAIN’ FRP DRAIN CHANNEL WITHOUT GRATING | ‘THERMODRAIN’ FRP GRATING WITHOUT FRAME');
+  eq(M.groups.map(g => g.title).join(' | '), '‘THERMODRAIN’ FRP DRAIN CHANNEL WITH GRATING | ‘THERMODRAIN’ FRP DRAIN CHANNEL WITHOUT GRATING | ‘THERMODRAIN’ FRP GRATING (OPEN TEETH) WITHOUT FRAME');
   eq(M.groups[0].items[0].wording, '1000 mm (L) x 300 mm (W) x 300 mm (D), with FRP grating');
-  eq(M.groups[2].items[0].wording, '1200 mm x 600 mm x 38 mm thick');
+  eq(M.groups[2].items[0].wording, '1200 mm x 600 mm x 38 mm thick, open teeth');
   eq(M.totals.sub, 85000 + 6000 + 6500);
   await page.reload(); await page.waitForFunction(() => !!window.__tdApp);
   eq(await page.locator('#sumItems .item').count(), 3, 'items survive a reload');

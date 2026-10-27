@@ -453,7 +453,7 @@ await test('drain channel and grating: typed lines, checklist, wording and Excel
   ok(ch2.ok, ch2.error); eq(ch2.item.grate, 'without'); eq(ch2.item.qty, 4); eq(ch2.item.h, 250);
   const g = TD.parseLine('FRP grating 1000x500 38 mm thick C250 price 6500 qty 3');
   ok(g.ok, g.error); eq(g.item.kind, 'grating'); eq(g.item.h, 38); eq(g.item.load, 3); eq(g.item.frame, 'none');
-  eq(TD.defaultWording(g.item), '1000 mm x 500 mm x 38 mm thick');
+  eq(TD.defaultWording(g.item), '1000 mm x 500 mm x 38 mm thick, open teeth');
   const g2 = TD.parseLine('grating 1220x3660x50 price 25000 qty 2 ms frame'); ok(g2.ok, g2.error); eq(g2.item.h, 50); eq(g2.item.frame, 'ms');
   eq(TD.parseLine('gully grating 300x300 C250 qty 2').item.prod, 'gully', 'gully grating stays a gully cover');
   eq(TD.parseLine('grating cover 600x600 b125 qty 2').item.prod, 'gully', 'grating cover stays a gully cover');
@@ -467,9 +467,30 @@ await test('drain channel and grating: typed lines, checklist, wording and Excel
   const find = txt => { let hit = null; x.ws.eachRow(row => row.eachCell(c => { if (!hit && c.value === txt) hit = c; })); return hit; };
   ok(find('‘THERMODRAIN’ FRP DRAIN CHANNEL WITH GRATING'), 'channel group');
   ok(find('‘THERMODRAIN’ FRP DRAIN CHANNEL WITHOUT GRATING'), 'channel without grating group');
-  ok(find('‘THERMODRAIN’ FRP GRATING WITHOUT FRAME'), 'grating group');
-  ok(find('1000 mm x 500 mm x 38 mm thick'), 'grating wording');
+  ok(find('‘THERMODRAIN’ FRP GRATING (OPEN TEETH) WITHOUT FRAME'), 'grating group');
+  ok(find('1000 mm x 500 mm x 38 mm thick, open teeth'), 'grating wording');
   near(x.ws.getCell('H' + x.totalRowsAt.total).value.result, 85000 + 20000 + 19500 + 4 * TD.unitPrice(TD.parseLine('solid 600x600 b125 qty 4').item));
+});
+await test('gratings: close teeth for catalogue sizes (30 / 40 mm high, max 1000 x 2430), open teeth for any other size', async () => {
+  eq(TD.CLOSE_TEETH_SIZES.length, 61); eq(TD.CLOSE_TEETH_SIZES[0], 48); eq(TD.CLOSE_TEETH_SIZES[60], 2430);
+  for (let i = 1; i < TD.CLOSE_TEETH_SIZES.length; i++) ok(TD.CLOSE_TEETH_SIZES[i] > TD.CLOSE_TEETH_SIZES[i - 1], 'ascending');
+  const t = l => { const r = TD.parseLine(l); ok(r.ok, r.error); return TD.teethOf(r.item); };
+  eq(t('FRP grating 1200x604 30 mm thick price 6500 qty 3'), 'close');
+  eq(t('grating 2430x1001x40 price 9000 qty 1'), 'close', 'largest size');
+  eq(t('grating 1000x2430 price 9000 qty 1'), 'close', '1000 mm is the 1001 width');
+  eq(t('grating 1200x48x30 price 900 qty 6'), 'close', '2-digit width');
+  eq(t('grating 604x1200 price 1 qty 1'), 'close', 'height not stated');
+  eq(t('grating 1000x500 price 1 qty 1'), 'open', 'not in the list');
+  eq(t('grating 1200x604x50 price 1 qty 1'), 'open', '50 mm high');
+  eq(t('grating 2430x1200 price 1 qty 1'), 'open', 'wider than 1000');
+  eq(t('grating 2431x1001 price 1 qty 1'), 'open', 'just off the list');
+  ok(/width 485 or 525/.test(TD.teethInfo(TD.parseLine('grating 1000x500 price 1 qty 1').item).reason), 'nearest sizes');
+  const x = await makeXlsx('QTN_teeth.xlsx', ['FRP grating 1200x604 30 mm thick price 6500 qty 3', 'FRP grating 1000x500 price 4000 qty 2'], 0, true);
+  const find = txt => { let hit = null; x.ws.eachRow(row => row.eachCell(c => { if (!hit && c.value === txt) hit = c; })); return hit; };
+  ok(find('‘THERMODRAIN’ FRP GRATING (CLOSE TEETH) WITHOUT FRAME'), 'close group');
+  ok(find('‘THERMODRAIN’ FRP GRATING (OPEN TEETH) WITHOUT FRAME'), 'open group');
+  ok(find('1200 mm x 604 mm x 30 mm thick, close teeth'), 'close wording');
+  ok(find('1000 mm x 500 mm, open teeth'), 'open wording');
 });
 await test('Excel: US$ export quotation has US$ prices, no GST rows, and says GST not applicable', async () => {
   const x = await makeXlsx('QTN_usd.xlsx', [...FOUR, 'chamber 1000x1000x600 two sided b125 price 45000 qty 2'], undefined, 'usd', { ...FIELDS, usdRate: '88.5' });

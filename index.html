@@ -192,6 +192,10 @@ details.more .drive-in .form-grid{padding:0}
 .seg button[aria-pressed="true"]{background:var(--blue);color:#fff}
 .seg button[aria-pressed="true"] .cnt{color:#DCE4F2}
 .hint{color:var(--muted);font-size:13px;margin:0 0 8px}
+.teeth{font-size:13px;margin:10px 0 0;padding:8px 12px;border-radius:var(--r-ctl);border:1px solid var(--border);background:var(--tint);color:var(--text)}
+.teeth b{margin-right:4px}
+.teeth.close{border-color:#A9D8BF;background:#EEF8F2}.teeth.close b{color:var(--green)}
+.teeth.open b{color:var(--blue)}
 .size-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px}
 .size{background:#fff;border:1px solid var(--border);border-radius:var(--r-ctl);padding:8px 6px;min-height:54px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-width:0}
 .size b{font:600 18px/1.1 var(--f-cond);white-space:nowrap}
@@ -464,6 +468,7 @@ dialog.pv::backdrop{background:rgba(27,42,74,.55)}
           <div class="fld"><label for="gW">Width, mm</label><input id="gW" data-g="w" type="number" min="1" inputmode="numeric"></div>
           <div class="fld"><label for="gT">Thickness, mm</label><input id="gT" data-g="h" type="number" min="1" inputmode="numeric" placeholder="Optional"></div>
         </div>
+        <p class="teeth" id="gTeeth" role="status" aria-live="polite"></p>
        </div>
       </div>
 
@@ -934,6 +939,34 @@ function isMulti(it){ return kindOf(it)==='multi'; }
 function isChamber(it){ return kindOf(it)==='chamber'; }
 function grateText(it){ return it.grate==='without' ? 'without grating' : 'with FRP grating'; }
 function thickOf(it){ const t=parseInt(it.h,10); return kindOf(it)==='grating' && t>0 ? t : null; }
+/* Close-teeth grating sizes, copied as printed in the THERMODRAIN catalogue ("Sizes of gratings",
+   30 mm & 40 mm height). Max 1000 mm (width) x 2430 mm (length). Any other size is open teeth. */
+const CLOSE_TEETH_SIZES=[48,88,128,167,207,247,286,326,366,406,445,485,525,564,604,644,684,723,763,803,843,882,922,962,1001,1041,1081,1121,1160,1200,
+  1240,1279,1319,1359,1399,1438,1478,1518,1557,1597,1637,1677,1716,1756,1796,1836,1875,1914,1955,1993,2034,2074,2114,2154,2194,2234,2273,2314,2353,2393,2430];
+const CLOSE_TEETH_HEIGHTS=[30,40];
+const CLOSE_TEETH_MAX={w:1000,l:2430};
+// the catalogue lists 1001 but states the max width as 1000 mm, so 1000 counts as that size
+function closeTeethSize(v){ v=+v; return v===1000 ? true : CLOSE_TEETH_SIZES.includes(v); }
+function nearestCloseTeeth(v){
+  v=+v; let lo=null, hi=null;
+  for(const n of CLOSE_TEETH_SIZES){ if(n<=v) lo=n; else if(hi===null) hi=n; }
+  return [lo,hi].filter(x=>x!==null);
+}
+/* {teeth:'close'|'open', reason} for a grating; null for anything else. */
+function teethInfo(it){
+  if(kindOf(it)!=='grating') return null;
+  const l=+it.l||0, w=+it.w||0, t=thickOf(it), big=Math.max(l,w), small=Math.min(l,w);
+  const sz=l+' × '+w+' mm';
+  if(!(l>0&&w>0)) return {teeth:'open',reason:'Enter the length and width.'};
+  if(!closeTeethSize(l) || !closeTeethSize(w)){
+    const near=[]; if(!closeTeethSize(l)) near.push('length '+nearestCloseTeeth(l).join(' or ')); if(!closeTeethSize(w)) near.push('width '+nearestCloseTeeth(w).join(' or '));
+    return {teeth:'open',reason:sz+' is not a close-teeth size. Nearest close-teeth sizes: '+near.join(', ')+' mm.'};
+  }
+  if(small>1001 || big>CLOSE_TEETH_MAX.l) return {teeth:'open',reason:'Close-teeth gratings go up to '+CLOSE_TEETH_MAX.w+' mm wide × '+CLOSE_TEETH_MAX.l+' mm long.'};
+  if(t!==null && !CLOSE_TEETH_HEIGHTS.includes(t)) return {teeth:'open',reason:'Close-teeth gratings are 30 or 40 mm high; this one is '+t+' mm.'};
+  return {teeth:'close',reason:sz+' is a standard close-teeth size'+(t?'':' (30 or 40 mm height)')+'.'};
+}
+function teethOf(it){ const i=teethInfo(it); return i ? i.teeth : null; }
 function coversOf(it){ const n=parseInt(it.covers,10); return n>=2 ? Math.min(n,20) : 2; }
 function customName(it){ return String(it.name||'').trim() || CUSTOM_DEFAULT_NAME[kindOf(it)||'chamber']; }
 function multiFrameText(fr,n){ return fr==='none' ? n+' covers (without frame)' : n+' covers with single '+(fr==='frp'?'FRP':'MS')+' frame'; }
@@ -946,13 +979,15 @@ function itemKey(it){
 }
 function groupKey(it){
   if(kindOf(it)==='channel') return 'custom|'+customName(it).toUpperCase()+'|'+(it.grate==='without'?'nograte':'grate')+'|channel';
+  if(kindOf(it)==='grating') return 'custom|'+customName(it).toUpperCase()+'|'+normFrame('custom',it.frame)+'|grating|'+teethOf(it);
   if(it.prod==='custom') return 'custom|'+customName(it).toUpperCase()+'|'+normFrame('custom',it.frame)+'|'+kindOf(it);
   return it.prod+'|'+normFrame(it.prod,it.frame,it.id);
 }
 function groupTitle(key){
-  const [prod,a,b,kind]=key.split('|');
+  const [prod,a,b,kind,teeth]=key.split('|');
   if(prod==='gully') return GROUP_TITLE['gully|'+a];
   if(prod==='custom' && kind==='channel') return '‘THERMODRAIN’ '+a+(b==='grate' ? (/GRAT/.test(a)?'':' WITH GRATING') : (/GRAT/.test(a)?'':' WITHOUT GRATING'));
+  if(prod==='custom' && kind==='grating') return '‘THERMODRAIN’ '+a+' ('+(teeth==='close'?'CLOSE':'OPEN')+' TEETH) '+FRAME_TITLE[b];
   if(prod==='custom') return '‘THERMODRAIN’ '+a+' '+FRAME_TITLE[b];
   return GROUP_TITLE[prod].replace(' WITH FRAME',' '+FRAME_TITLE[a]);
 }
@@ -982,7 +1017,7 @@ function sizeText(prod,id,load){
 }
 function itemSizeText(it){
   if(isMulti(it)) return (+it.l||0)+' × '+(+it.w||0)+' mm, '+coversOf(it)+' covers';
-  if(kindOf(it)==='grating') return (+it.l||0)+' × '+(+it.w||0)+' mm'+(thickOf(it)?', '+thickOf(it)+' mm thick':'');
+  if(kindOf(it)==='grating') return (+it.l||0)+' × '+(+it.w||0)+' mm'+(thickOf(it)?', '+thickOf(it)+' mm thick':'')+', '+teethOf(it)+' teeth';
   if(kindOf(it)==='channel') return (+it.l||0)+' × '+(+it.w||0)+' × '+(+it.h||0)+' mm (L × W × D)';
   if(it.prod==='custom') return (+it.l||0)+' × '+(+it.w||0)+' × '+(+it.h||0)+' mm';
   return sizeText(it.prod,it.id,it.load)+(it.prod==='gully'?' out to out':'');
@@ -1018,7 +1053,7 @@ function specText(it){
 function defaultWording(it){
   if(isMulti(it)) return (+it.l||0)+' mm x '+(+it.w||0)+' mm clear opening, '+multiFrameText(normFrame('custom',it.frame),coversOf(it));
   if(kindOf(it)==='channel') return (+it.l||0)+' mm (L) x '+(+it.w||0)+' mm (W) x '+(+it.h||0)+' mm (D), '+grateText(it);
-  if(kindOf(it)==='grating') return (+it.l||0)+' mm x '+(+it.w||0)+' mm'+(thickOf(it)?' x '+thickOf(it)+' mm thick':'');
+  if(kindOf(it)==='grating') return (+it.l||0)+' mm x '+(+it.w||0)+' mm'+(thickOf(it)?' x '+thickOf(it)+' mm thick':'')+', '+teethOf(it)+' teeth';
   if(it.prod==='custom') return (+it.l||0)+' mm (L) x '+(+it.w||0)+' mm (W) x '+(+it.h||0)+' mm (H), '+finishText(it);
   const f=findRow(it.prod,it.id); if(!f) return '';
   if(it.prod==='gully'){
@@ -1199,6 +1234,7 @@ function parseLine(raw){
     return fail('Three sizes were given. Use length x width for a cover, or write "chamber" or "drain channel" for length x width x height.');
   let size=null, dims3=null;
   if(prod==='custom' && !multi && (m=take(/(?<![\d.])(\d{2,5})\s*(?:mm)?\s*x\s*(\d{2,5})\s*(?:mm)?\s*x\s*(\d{2,5})(?![\d.])\s*(?:mm)?/))) dims3=[+m[1],+m[2],+m[3]];
+  else if(ck==='grating' && (m=take(/(?<![\d.])(\d{2,4})\s*(?:mm)?\s*x\s*(\d{2,4})(?![\d.])\s*(?:mm)?/))) size={a:+m[1],b:+m[2]}; // gratings come as narrow as 48 mm
   else if((m=take(/(?<![\d.])(\d{3,4})\s*(?:mm)?\s*x\s*(\d{3,4})(?![\d.])\s*(?:mm)?/))) size={a:+m[1],b:+m[2]};
   else if((m=take(/(?:(?:dia|ø|round)\.?\s*)?(?<![\d.])(\d{3,4})(?![\d.])\s*(?:mm)?\s*(?:diameter|dia\.?|ø|round)?/))) size={n:+m[1]};
 
@@ -1223,7 +1259,7 @@ function parseLine(raw){
   }
   if(ck==='grating'){
     const d = dims3 ? dims3 : size && size.a ? [size.a,size.b,thick] : null;
-    if(!d) return fail('Add the grating size as length x width in mm, for example 1000x500 (add the thickness like 38 mm thick).');
+    if(!d) return fail('Add the grating size as length x width in mm, for example 1200x604 (add the thickness like 30 mm thick).');
     if(d[2]!==null && !(d[2]>=5 && d[2]<=300)) return fail('Grating thickness looks wrong. Write it like 38 mm thick.');
     if(!(price>0)) return fail('Add the grating price per piece, for example price 6500.');
     const item={prod,kind:'grating',name:'FRP Grating',l:d[0],w:d[1],h:d[2]||null,frame:frame||'none',load,loadText:'',price,qty,disc};
@@ -1316,7 +1352,8 @@ function checkLine(raw){
   const hasQty=/\b(?:qty|qnty|qnt|quantity)\b\.?\s*[:=\-]?\s*\d|(?<![\d.])\d{1,5}\s*(?:nos|pcs|pieces|units)\b|\b(?:nos|no)\b\.?\s*[:=\-]?\s*\d/.test(s);
   const hasLoad = prod==='tank' || LOAD_RES.some(([,re])=>re.test(s));
   const hasSize = chamber ? /(?<![\d.])\d{2,5}\s*(?:mm)?\s*x\s*\d{2,5}\s*(?:mm)?\s*x\s*\d{2,5}/.test(s)
-    : (multi||grating) ? /(?<![\d.])\d{3,4}\s*(?:mm)?\s*x\s*\d{3,4}/.test(s)
+    : grating ? /(?<![\d.])\d{2,4}\s*(?:mm)?\s*x\s*\d{2,4}/.test(s)
+    : multi ? /(?<![\d.])\d{3,4}\s*(?:mm)?\s*x\s*\d{3,4}/.test(s)
     : /(?<![\d.])\d{3,4}(?![\d.])/.test(s.replace(/\b(?:qty|qnty|qnt|quantity|nos?|pcs)\b\.?\s*[:=\-]?\s*\d+/g,' ').replace(/\d+\s*(?:nos|pcs|pieces|units)\b/g,' ').replace(/(?:\bprice|\brate|\brs\.?|₹|\binr|@)\s*[:=]?\s*[\d,]+/g,' ').replace(/\b[bcde]\s*-?\s*\d{3}\b/g,' '));
   const r=parseLine(text);
   // a typed price is needed for custom items and for frames without a list price
@@ -1608,7 +1645,7 @@ function buildWorkbook(ExcelJS,M,logos){
 }
 
 return {LOADS,DATA,FLAGS,PRODUCTS,SHAPES,LOAD_CODE,LOAD_PRINT,PRINT_NAME,GROUP_TITLE,GROUP_NOTE,GULLY_OTO,DEFAULT_FIELDS,CUSTOMER_KEYS,COLW,NUMFMT,
-  findRow,checkLine,enquiryLines,isCic,FUEL_INFO,isMulti,kindOf,isChamber,thickOf,grateText,CUSTOM_KINDS,CUSTOM_DEFAULT_NAME,coversOf,allowedFrames,serialOf,lcFirst,isLoadIdx,isTwin,isTwinItem,priceOf,normFrame,listFrame,isManual,listPrice,unitPrice,pctOf,depthOf,itemDisc,itemSizeText,itemLoadText,itemLoadPrint,finishText,customName,groupTitle,FRAME_LABEL,usdRateOf,fmtUS,usd2,pctLabel,modeOf,linePrice,money,moneyShort,NUMFMT_USD,itemKey,groupKey,flagFor,gullyOTO,inchesOf,sizeText,loadText,loadPrint,productLabel,specText,
+  findRow,checkLine,enquiryLines,isCic,FUEL_INFO,isMulti,kindOf,isChamber,thickOf,teethInfo,teethOf,CLOSE_TEETH_SIZES,grateText,CUSTOM_KINDS,CUSTOM_DEFAULT_NAME,coversOf,allowedFrames,serialOf,lcFirst,isLoadIdx,isTwin,isTwinItem,priceOf,normFrame,listFrame,isManual,listPrice,unitPrice,pctOf,depthOf,itemDisc,itemSizeText,itemLoadText,itemLoadPrint,finishText,customName,groupTitle,FRAME_LABEL,usdRateOf,fmtUS,usd2,pctLabel,modeOf,linePrice,money,moneyShort,NUMFMT_USD,itemKey,groupKey,flagFor,gullyOTO,inchesOf,sizeText,loadText,loadPrint,productLabel,specText,
   defaultWording,wordingOf,TRANSPORT_MODES,PAY_PRESETS,transportText,paySlabsOf,slabTotal,slabProblem,paymentLines,fmtIN,rupees,rupees2,round2,ddmmyyyy,fyOf,pad3,todayISO,refNo,parseLine,describeParsed,matchSize,
   totals,autoSubject,introText,buildModel,whatsappText,wrapLines,rowHeightFor,buildWorkbook,stripB64,
   logos:{tp:LOGO_TP,td:LOGO_TD}};
@@ -1696,7 +1733,7 @@ const P=Object.assign({prod:'solid',shape:'Square',id:'s600',frame:'frp',load:2,
   m:{name:'FRP/GRP Multiple Manhole Cover',l:1800,w:900,covers:2,load:2}},saved.picker||{});
 P.ck = T.CUSTOM_KINDS.includes(P.ck) ? P.ck : 'chamber';
 P.ch=Object.assign({name:'FRP Drain Channel',l:1000,w:300,h:300,grate:'with',load:4},P.ch||{});
-P.g=Object.assign({name:'FRP Grating',l:1000,w:500,h:38,load:2},P.g||{});
+P.g=Object.assign({name:'FRP Grating',l:1200,w:604,h:30,load:2},P.g||{});
 P.m=Object.assign({name:'FRP/GRP Multiple Manhole Cover',l:1800,w:900,covers:2,load:2},P.m||{});
 if(!T.DATA[P.prod] && P.prod!=='custom') P.prod='solid';
 P.c=Object.assign({name:'FRP Chamber',l:1000,w:1000,h:600,finish:'single',load:2},P.c||{});
@@ -2017,6 +2054,7 @@ function renderPicker(){
     for(const el of document.querySelectorAll('#customWrap [data-m]')) if(document.activeElement!==el) el.value=P.m[el.dataset.m]??'';
     for(const el of document.querySelectorAll('#customWrap [data-ch]')) if(document.activeElement!==el) el.value=P.ch[el.dataset.ch]??'';
     for(const el of document.querySelectorAll('#customWrap [data-g]')) if(document.activeElement!==el) el.value=P.g[el.dataset.g]??'';
+    if(P.ck==='grating'){ const ti=T.teethInfo(pItem()), te=$('#gTeeth'); te.className='teeth '+ti.teeth; te.innerHTML='<b>'+(ti.teeth==='close'?'Close teeth':'Open teeth')+'</b> '+esc(ti.reason); }
     $('#grateSeg').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.grate===P.ch.grate)));
     $('#kindSeg').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.kind===P.ck)));
     $('#chamberWrap').hidden = P.ck!=='chamber'; $('#multiWrap').hidden = P.ck!=='multi'; $('#channelWrap').hidden = P.ck!=='channel'; $('#gratingWrap').hidden = P.ck!=='grating';
