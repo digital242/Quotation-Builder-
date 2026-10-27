@@ -169,7 +169,7 @@ await test('UI 8: download .xlsx (48% discount), filename, formulas, serial +1',
   const wb = new ExcelJS.Workbook(); await wb.xlsx.readFile(file);
   const ws = wb.getWorksheet('Quotation');
   const labels = []; ws.eachRow((row, rn) => { const v = row.getCell(5).value; if (typeof v === 'string' && /TOTAL|Discount|GST @/.test(v)) labels.push([v, row.getCell(8).value, rn]); });
-  eq(labels.map(l => l[0]).join(' | '), 'TOTAL | ADD : GST @ 18% | GRAND TOTAL (INCL. 18% GST)', 'lines at net rate, GST on the net total');
+  eq(labels.map(l => l[0]).join(' | '), 'TOTAL | PLUS GST @ 18% | TOTAL', 'lines at net rate, GST on the net total');
   eq(labels[0][1].result, 138850.4); eq(labels[2][1].result, 163843.47);
   const vals = []; ws.eachRow(row => row.eachCell(c => vals.push(c.value)));
   ok(vals.includes('NET RATE /PC (RS)') && vals.includes(6419.4), 'net rate column (12345 less 48%)');
@@ -198,11 +198,11 @@ await test('UI: preview dialog, WhatsApp text, persistence, new quotation keeps 
   await page.click('#btnPreview');
   ok(await page.isVisible('#pvDlg'));
   const paper = await page.textContent('#paper');
-  ok(paper.includes('GRAND TOTAL (INCL. 18% GST)') && paper.includes('3,15,083.60') && paper.includes('KIND ATTN'));
+  ok(paper.includes('PLUS GST @ 18%') && paper.includes('3,15,083.60') && paper.includes('KIND ATTN'));
   await page.click('#pvClose');
   const wa = await page.evaluate(() => TD.whatsappText(window.__tdApp.model()));
   ok(wa.includes('*Grand total (incl. 18% GST): ₹3,15,083.60*'), wa);
-  ok(wa.includes('*‘THERMODRAIN’ FRP/GRP SOLID TOP MANHOLE COVER WITH FRAME*'));
+  ok(wa.includes('*‘THERMODRAIN’ FRP MANHOLE COVERS WITH FRAME*'));
   await page.click('#btnCopy');
   await page.waitForTimeout(150);
   ok((await lastToast(page)).startsWith('Copied') || (await lastToast(page)).startsWith('Couldn'));
@@ -333,8 +333,8 @@ await test('UI: custom chamber, MS frame with typed price, recess depth', async 
   ok((await page.textContent('#abSpec')).includes('recess depth 75 mm'));
   await page.click('#abAdd');
   const M = await page.evaluate(() => window.__tdApp.model());
-  eq(M.groups.map(g => g.title).join(' | '), '‘THERMODRAIN’ FRP INSPECTION CHAMBER WITH MS FRAME | ‘THERMODRAIN’ FRP/GRP SOLID TOP MANHOLE COVER WITHOUT FRAME | ‘THERMODRAIN’ FRP/GRP RECESS COVER WITH FRAME');
-  ok(M.groups[2].items[0].wording.endsWith('recess depth 75 mm'));
+  eq(M.groups.map(g => g.title).join(' | '), '‘THERMODRAIN’ FRP INSPECTION CHAMBER WITH MS FRAME | ‘THERMODRAIN’ FRP MANHOLE COVERS WITHOUT FRAME | ‘THERMODRAIN’ FRP/GRP RECESS COVER WITH FRAME');
+  ok(M.groups[2].items[0].wording.endsWith('recess depth 75mm'));
   // manual price can be changed in the summary
   await page.fill('#sumItems .item:nth-child(2) input[data-act=price]', '16000'); await page.press('#sumItems .item:nth-child(2) input[data-act=price]', 'Tab');
   ok((await page.textContent('#sumItems .item:nth-child(2) .amt')).includes('₹16,000'));
@@ -458,7 +458,7 @@ await test('UI: custom multi-cover manhole cover from the picker', async () => {
   await page.click('#abAdd');
   const M = await page.evaluate(() => window.__tdApp.model());
   eq(M.groups[0].title, '‘THERMODRAIN’ FRP/GRP MULTIPLE MANHOLE COVER WITH MS FRAME');
-  eq(M.groups[0].items[0].wording, '2400 mm x 900 mm clear opening, 4 covers with single MS frame');
+  eq(M.groups[0].items[0].wording, '2400mm X 900mm, 4 covers with single MS frame');
   // switching back to chamber keeps the chamber fields
   await page.click('[data-kind="chamber"]'); ok(await page.isVisible('#chamberWrap'));
   await page.reload(); await page.waitForFunction(() => !!window.__tdApp);
@@ -489,9 +489,9 @@ await test('UI: drain channel and grating from the picker', async () => {
   ok((await page.textContent('#gTeeth')).includes('Nearest close-teeth sizes: width 564 or 604'), await page.textContent('#gTeeth'));
   await page.fill('#abPriceIn', '6500'); await page.click('#abAdd');
   const M = await page.evaluate(() => window.__tdApp.model());
-  eq(M.groups.map(g => g.title).join(' | '), '‘THERMODRAIN’ FRP DRAIN CHANNEL WITH GRATING | ‘THERMODRAIN’ FRP DRAIN CHANNEL WITHOUT GRATING | ‘THERMODRAIN’ FRP GRATING (OPEN TEETH) WITHOUT FRAME');
-  eq(M.groups[0].items[0].wording, '1000 mm (L) x 300 mm (W) x 300 mm (D), with FRP grating');
-  eq(M.groups[2].items[0].wording, '1200 mm x 600 mm x 38 mm thick, open teeth');
+  eq(M.groups.map(g => g.title).join(' | '), '‘THERMODRAIN’ FRP DRAIN CHANNEL WITH GRATING | ‘THERMODRAIN’ FRP DRAIN CHANNEL WITHOUT GRATING | ‘THERMODRAIN’ FRP GRATINGS');
+  eq(M.groups[0].items[0].wording, '1000mm L X 300mm W X 300mm D, with FRP grating');
+  eq(M.groups[2].items[0].wording, '600mm W X 1200mm L x 38mm ht, open teeth');
   eq(M.totals.sub, 85000 + 6000 + 6500);
   await page.reload(); await page.waitForFunction(() => !!window.__tdApp);
   eq(await page.locator('#sumItems .item').count(), 3, 'items survive a reload');
@@ -513,7 +513,7 @@ await test('UI: fuel station covers in the picker (C250 / D400 only, CIC sizes)'
   await page.click('#abAdd');
   const M = await page.evaluate(() => window.__tdApp.model());
   eq(M.groups[0].items[0].price, 76505);
-  eq(M.groups[0].items[0].wording, '900 mm x 900 mm (36" x 36") clear opening with 200 mm inner dia (cover in cover), Model 900*900 (A&W.C) CIC, cover weight 90 kg');
+  eq(M.groups[0].items[0].wording, '900mm X 900mm with 200mm inner dia (cover in cover), Model 900*900 (A&W.C) CIC, cover weight 90 kg');
   eq(page.errors.length, 0, page.errors.join());
   await ctx.close();
 });

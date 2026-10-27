@@ -106,7 +106,7 @@ await test('Drive: folders by city and client, every quotation saved, register r
   eq(lines.length, 5, 'header + 4 quotations');
   ok(lines[0].startsWith('Date,Quotation ref,Client,City,'), lines[0]);
   ok(lines[1].includes('BRIGADE INFRA,BENGALURU') && lines[1].includes('/001/') && lines[1].includes('INR'), lines[1]);
-  ok(lines[3].includes('INDIAN OIL CORPORATION,MUMBAI') && lines[3].includes('/003/') && lines[3].includes('3 x 900 mm dia'), lines[3]);
+  ok(lines[3].includes('INDIAN OIL CORPORATION,MUMBAI') && lines[3].includes('/003/') && lines[3].includes('3 x 900mm Dia'), lines[3]);
   ok(lines[4].includes('CITY NOT GIVEN'), lines[4]);
   ok(lines[1].includes('https://drive.example/'), 'file link in the register');
   eq(await page.evaluate(() => window.__tokReq), 1, 'signed in once, reused for every download');
