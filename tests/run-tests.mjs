@@ -520,6 +520,27 @@ await test('Excel: manhole cover note is a subtitle under the first manhole cove
   const M = TD.buildModel([TD.parseLine('air water tight 600x600 c250 qty 1').item], FIELDS, true);
   eq(M.groups[0].note, TD.NOTE_MHC, 'air & water tight covers carry the manhole cover note, as in the format');
 });
+await test('client data: one row per product, CSV round trip, same quotation replaced, Excel export', async () => {
+  const items = []; addAll(items, ['solid 600x600 b125 qty 4 10% disc', 'FRP grating 1001x366x40 5 ton price 3671 qty 235']);
+  const M = TD.buildModel(items, { ...FIELDS, address: '' }, 'gst');
+  const rows = TD.clientDataRows(M, 'Bengaluru');
+  eq(rows.length, 2);
+  eq(JSON.stringify(rows[0]), JSON.stringify(['2026-09-24', 'THERMODRAIN/QTN/TP1-BGLR/025/2026-27', 'ACME INFRA PVT LTD', 'BENGALURU', 'Solid Top MHC', '600mm X 600mm', 'B 125', 4, 10, 11110.5, 44442, TD.round2(M.totals.grand), 'INR']));
+  eq(rows[1][6], '5 Ton UDL'); eq(rows[1][5], '366mm W X 1001mm L x 40mm ht, close teeth');
+  const csv = [TD.CLIENT_DATA_HEAD, ...rows, ['x', 'y', 'Comma, "quoted"\nline']].map(TD.csvLine).join('\r\n');
+  const back = TD.parseCsv('\uFEFF' + csv + '\r\n');
+  eq(back.length, 4); eq(back[3][2], 'Comma, "quoted"\nline'); eq(back[1][1], rows[0][1]);
+  const merged = TD.mergeClientRows(back.slice(0, 3), [[...rows[0]]]);
+  eq(merged.length, 2, 'rows of the same quotation replaced'); eq(merged[0][0], 'Date');
+  eq(TD.mergeClientRows([], rows).length, 3, 'header added to a new sheet');
+  const wb = TD.buildClientDataWorkbook(ExcelJS, [...JSON.parse(JSON.stringify(rows)), ['2026-01-02', 'REF/2', 'ZETA CO', 'PUNE', 'Recess Cover', '600mm X 600mm', 'B 125', 1, 0, 16925, 16925, 19971.5, 'INR']]);
+  const file = path.join(OUT, 'client_data.xlsx'); await wb.xlsx.writeFile(file);
+  const wb2 = new ExcelJS.Workbook(); await wb2.xlsx.readFile(file); const ws = wb2.getWorksheet('Client data');
+  eq(ws.getRow(1).values.slice(1).join('|'), TD.CLIENT_DATA_HEAD.join('|'));
+  eq(ws.rowCount, 4); eq(ws.getCell('C2').value, 'ACME INFRA PVT LTD'); eq(ws.getCell('C4').value, 'ZETA CO', 'sorted by client');
+  ok(ws.getCell('A2').value instanceof Date); eq(ws.getCell('H2').value, 4); eq(ws.getCell('K2').value, 44442);
+  ok(ws.autoFilter, 'filter on the header');
+});
 await test('Excel: US$ export quotation has US$ prices, no GST rows, and says GST not applicable', async () => {
   const x = await makeXlsx('QTN_usd.xlsx', [...FOUR, 'chamber 1000x1000x600 two sided b125 price 45000 qty 2'], undefined, 'usd', { ...FIELDS, usdRate: '88.5' });
   const ws = x.ws, at = x.totalRowsAt;

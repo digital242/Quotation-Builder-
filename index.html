@@ -515,6 +515,7 @@ dialog.pv::backdrop{background:rgba(27,42,74,.55)}
         <div class="fld"><label for="custPick">Saved customers</label><select id="custPick"><option value="">Pick a saved customer…</option></select></div>
         <button type="button" class="btn btn-secondary" id="custSave">Save this customer</button>
         <button type="button" class="btn-link" id="custDel">Delete saved</button>
+        <button type="button" class="btn-link" id="custExport">Export client data (Excel)</button>
       </div>
       <div class="form-grid">
         <div class="fld full combo"><label for="f_company">Company name <span class="req" aria-hidden="true">*</span></label><input id="f_company" data-f="company" autocomplete="off" required aria-required="true" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="custSuggest" aria-describedby="custHint">
@@ -561,7 +562,7 @@ dialog.pv::backdrop{background:rgba(27,42,74,.55)}
       <details class="more" id="driveBox">
         <summary>Google Drive client database <span class="drive-badge" id="driveBadge">Off</span></summary>
         <div class="drive-in">
-          <p class="hint">Every downloaded quotation is also saved to Google Drive in folders by location and client, and listed in a quotation register you can open in Google Sheets:<br><b>THERMODRAIN Quotations / CITY / CLIENT / QTN_025_Client.xlsx</b></p>
+          <p class="hint">Every downloaded quotation is also saved to Google Drive in folders by location and client. Each client folder has a Google Sheet with every product quoted to them (date, product, size, load class, discount, value), and a new row is added with each quotation. All quotations are also listed in a quotation register in the main folder.<br><b>THERMODRAIN Quotations / CITY / CLIENT / QTN_025_Client.xlsx<br>THERMODRAIN Quotations / CITY / CLIENT / CLIENT - client data</b> (Google Sheet)</p>
           <label class="chk"><input type="checkbox" id="driveOn"> Save every downloaded quotation to Google Drive</label>
           <div class="form-grid">
             <div class="fld full"><label for="f_driveClientId">Google OAuth Client ID</label><input id="f_driveClientId" data-f="driveClientId" placeholder="1234567890-abc….apps.googleusercontent.com" autocomplete="off" spellcheck="false"></div>
@@ -649,7 +650,7 @@ const LOGO_TD = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA4gAAAD/CAIAAAA8H
 
 /* GOOGLE DRIVE: paste the OAuth Client ID here once (see "How to get the Client ID" in the app)
    so every phone and computer that opens the site has it already. It is not a secret. */
-const GOOGLE_CLIENT_ID = ''; /* <<< e.g. '1234567890-abc.apps.googleusercontent.com' */
+const GOOGLE_CLIENT_ID = '294947591975-gu0rcpscqt0phbk54mbsbsm4slejpc82.apps.googleusercontent.com'; /* company Google Cloud project; works only on the site addresses listed there */
 
 var TD = (function () {
 'use strict';
@@ -856,7 +857,7 @@ const COMPANY={
 const DEFAULT_FIELDS={company:'',address:'',city:'',cityCode:'',contact:'',mobile:'',email:'',site:'',enqBy:'Email',enqDate:'',
   series:'TP1',serial:1,qdate:'',subject:'',hsn:'39259090',transportMode:'Ex-works',transportPlace:'',paySlabs:[{pct:100,stage:'ADVANCE'}],
   unloading:"CLIENT'S SCOPE",delivery:'',validity:'',signedBy:'PRAVIN SAKPAL',designation:'MARKETING DIRECTOR',signMobile:'+91 9619908011',usdRate:'',
-  driveOn:!!GOOGLE_CLIENT_ID,driveClientId:GOOGLE_CLIENT_ID,driveRoot:'THERMODRAIN Quotations'};
+  driveOn:false,driveClientId:GOOGLE_CLIENT_ID,driveRoot:'THERMODRAIN Quotations'};
 const CUSTOMER_KEYS=['company','address','city','cityCode','contact','mobile','email','site','enqBy','enqDate','subject'];
 
 /* ---- Transportation and payment slabs ---- */
@@ -1661,7 +1662,56 @@ function buildWorkbook(ExcelJS,M,logos){
   return {wb,lastRow:r,firstItemRow:first,lastItemRow:lastItem,totalRowsAt:at};
 }
 
-return {LOADS,DATA,FLAGS,PRODUCTS,SHAPES,LOAD_CODE,LOAD_PRINT,PRINT_NAME,GROUP_TITLE,GROUP_NOTE,NOTE_MHC,NOTE_GRATING,GULLY_OTO,DEFAULT_FIELDS,CUSTOMER_KEYS,COLW,NUMFMT,
+/* ---- Client data: one row per quoted product, for the Excel export and each client's Google Sheet ---- */
+const CLIENT_DATA_HEAD=['Date','Quotation ref','Client name','City','Product','Size','Load class','Qty','Discount %','Net rate /pc','Value (excl. GST)','Quote value (incl. GST)','Currency'];
+function clientDataRows(M,city){
+  const c=String(city||'').trim().toUpperCase();
+  return M.groups.flatMap(g=>g.items.map(x=>[M.qdate,M.ref,M.company,c,productLabel(x.src),x.wording,x.load,x.qty,round2(x.disc||0),round2(x.price),round2(x.amount),round2(M.totals.grand),M.cur]));
+}
+/* Rows of a CSV file, keeping commas and line breaks inside quoted cells. */
+function parseCsv(text){
+  const rows=[]; let row=[], cell='', q=false;
+  text=String(text||'').replace(/^\uFEFF/,'');
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(q){ if(ch==='"'){ if(text[i+1]==='"'){ cell+='"'; i++; } else q=false; } else cell+=ch; }
+    else if(ch==='"') q=true;
+    else if(ch===','){ row.push(cell); cell=''; }
+    else if(ch==='\n'){ row.push(cell); rows.push(row); row=[]; cell=''; }
+    else if(ch!=='\r') cell+=ch;
+  }
+  if(cell!==''||row.length){ row.push(cell); rows.push(row); }
+  return rows.filter(r=>r.some(v=>String(v).trim()!==''));
+}
+function csvLine(row){ return row.map(v=>{ const t=String(v==null?'':v); return /[",\n\r]/.test(t)?'"'+t.replace(/"/g,'""')+'"':t; }).join(','); }
+/* Merge new rows into a client data table (header first): rows of the same quotation are replaced, not doubled. */
+function mergeClientRows(existing,rows){
+  const body=(existing||[]).filter((r,i)=>!(i===0 && r[0]===CLIENT_DATA_HEAD[0]));
+  const refs=new Set(rows.map(r=>r[1]));
+  return [CLIENT_DATA_HEAD.slice(),...body.filter(r=>!refs.has(r[1])),...rows];
+}
+function buildClientDataWorkbook(ExcelJS,rows){
+  const wb=new ExcelJS.Workbook(); wb.creator='THERMODRAIN Quotation builder'; wb.created=new Date();
+  const ws=wb.addWorksheet('Client data',{views:[{state:'frozen',ySplit:1}]});
+  const W=[12,34,30,14,34,40,12,8,11,14,16,18,9];
+  ws.columns=CLIENT_DATA_HEAD.map((h,i)=>({header:h,width:W[i]}));
+  const hr=ws.getRow(1); hr.height=30;
+  hr.eachCell(c=>{ c.font={name:'Calibri',size:11,bold:true,color:{argb:'FFFFFFFF'}}; c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF2C4474'}}; c.alignment={vertical:'middle',horizontal:'center',wrapText:true}; });
+  const sorted=rows.slice().sort((a,b)=>String(a[2]).localeCompare(String(b[2]))||String(a[0]).localeCompare(String(b[0]))||String(a[1]).localeCompare(String(b[1])));
+  for(const r of sorted){
+    const v=r.slice(); const d=String(v[0]).match(/^(\d{4})-(\d{2})-(\d{2})$/); if(d) v[0]=new Date(Date.UTC(+d[1],+d[2]-1,+d[3]));
+    for(const i of [7,8,9,10,11]) v[i]=+v[i]||0;
+    const row=ws.addRow(v);
+    row.getCell(1).numFmt='dd/mm/yyyy';
+    for(const i of [10,11,12]) row.getCell(i).numFmt = r[12]==='USD' ? NUMFMT_USD : NUMFMT;
+    row.getCell(9).numFmt='0.##';
+    row.eachCell(c=>{ c.font={name:'Calibri',size:11}; c.alignment={vertical:'top',wrapText:true}; c.border={bottom:{style:'thin',color:{argb:'FFD3DCEA'}}}; });
+  }
+  ws.autoFilter={from:'A1',to:{row:1,column:CLIENT_DATA_HEAD.length}};
+  return wb;
+}
+
+return {CLIENT_DATA_HEAD,clientDataRows,parseCsv,csvLine,mergeClientRows,buildClientDataWorkbook,LOADS,DATA,FLAGS,PRODUCTS,SHAPES,LOAD_CODE,LOAD_PRINT,PRINT_NAME,GROUP_TITLE,GROUP_NOTE,NOTE_MHC,NOTE_GRATING,GULLY_OTO,DEFAULT_FIELDS,CUSTOMER_KEYS,COLW,NUMFMT,
   netPrice,findRow,checkLine,enquiryLines,isCic,FUEL_INFO,isMulti,kindOf,isChamber,thickOf,teethInfo,teethOf,CLOSE_TEETH_SIZES,grateText,CUSTOM_KINDS,CUSTOM_DEFAULT_NAME,coversOf,allowedFrames,serialOf,lcFirst,isLoadIdx,isTwin,isTwinItem,priceOf,normFrame,listFrame,isManual,listPrice,unitPrice,pctOf,depthOf,itemDisc,itemSizeText,itemLoadText,itemLoadPrint,finishText,customName,groupTitle,FRAME_LABEL,usdRateOf,fmtUS,usd2,pctLabel,modeOf,linePrice,money,moneyShort,NUMFMT_USD,itemKey,groupKey,flagFor,gullyOTO,inchesOf,sizeText,loadText,loadPrint,productLabel,specText,
   defaultWording,wordingOf,TRANSPORT_MODES,PAY_PRESETS,transportText,paySlabsOf,slabTotal,slabProblem,paymentLines,fmtIN,rupees,rupees2,round2,ddmmyyyy,fyOf,pad3,todayISO,refNo,parseLine,describeParsed,matchSize,
   totals,autoSubject,introText,buildModel,whatsappText,wrapLines,rowHeightFor,buildWorkbook,stripB64,
@@ -1758,7 +1808,7 @@ const savedF=store.get(K_FIELDS)||{};
 const F=Object.assign({},T.DEFAULT_FIELDS,savedF);
 if(!F.qdate) F.qdate=today();
 // a Client ID built into the site fills an empty box (older saved settings had none)
-if(!String(F.driveClientId||'').trim() && typeof GOOGLE_CLIENT_ID==='string' && GOOGLE_CLIENT_ID.trim()){ F.driveClientId=GOOGLE_CLIENT_ID.trim(); if(savedF.driveOn===undefined) F.driveOn=true; }
+if(!String(F.driveClientId||'').trim() && typeof GOOGLE_CLIENT_ID==='string' && GOOGLE_CLIENT_ID.trim()){ F.driveClientId=GOOGLE_CLIENT_ID.trim(); }
 // Migrate older saved terms (free-text transport / payments) to the new fields.
 if(!T.TRANSPORT_MODES.includes(savedF.transportMode) && (savedF.transport!==undefined || !T.TRANSPORT_MODES.includes(F.transportMode))){
   const old=String(F.transport||'').trim(), m=old.match(/^(ex-?works|fob|cif)\b\s*(.*)$/i);
@@ -2263,6 +2313,37 @@ $('#custDel').addEventListener('click',()=>{
   if(!window.confirm('Delete '+c.company+' from saved customers? The current quotation is not changed.')) return;
   customers.splice(+v,1); store.set(K_CUST,customers); renderCustPick(''); toast(c.company+' deleted from saved customers.');
 });
+/* Client data: every quoted product, kept in this browser for the Excel export
+   (the same rows go to each client's Google Sheet when Google Drive is on). */
+const K_CDATA='td_client_data', CDATA_MAX=20000;
+function recordClientData(M){
+  const rows=T.clientDataRows(M,F.city);
+  const all=T.mergeClientRows([T.CLIENT_DATA_HEAD,...(store.get(K_CDATA)||[])],rows).slice(1);
+  store.set(K_CDATA,all.slice(-CDATA_MAX));
+  return rows;
+}
+function saveFile(name,buffer,mime){
+  const blob=new Blob([buffer],{type:mime});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=name; a.style.display='none';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),4000);
+}
+$('#custExport').addEventListener('click',async()=>{
+  const rows=store.get(K_CDATA)||[];
+  if(!rows.length){ toast('No client data yet. It is collected each time a quotation is downloaded.',true); return; }
+  if(!window.ExcelJS){ toast('The Excel library hasn\'t loaded yet. Check your internet connection, then try again.',true); return; }
+  try{
+    const wb=T.buildClientDataWorkbook(window.ExcelJS,rows);
+    const buffer=await wb.xlsx.writeBuffer();
+    const name='THERMODRAIN_client_data_'+T.todayISO()+'.xlsx';
+    let saved=false;
+    try{ const d=await window.claude?.use?.('downloads'); if(d && typeof d.save==='function'){ await d.save({filename:name,data:new Blob([buffer])}); saved=true; } }catch(e){ saved=false; }
+    if(!saved) saveFile(name,buffer,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    const nClients=new Set(rows.map(r=>r[2])).size;
+    toast('Client data exported: '+plural(rows.length,'product line','product lines')+' for '+plural(nClients,'client','clients')+'.');
+  }catch(e){ console.error(e); toast('The client data file couldn\'t be created. Try again.',true); }
+});
 function renderTransport(){
   const m=F.transportMode;
   $('#placeFld').hidden = m==='Extra';
@@ -2623,7 +2704,20 @@ async function saveToDrive(M,snap,buffer){
   if(reg){ text=(await (await gfetch(DAPI+'/'+reg.id+'?alt=media')).text()).replace(/^﻿/,''); if(text && !/\r?\n$/.test(text)) text+='\r\n'; }
   text+=row.map(csvCell).join(',')+'\r\n';
   await uploadFile(REGISTER_NAME,'text/csv',new Blob(['﻿'+text],{type:'text/csv'}),root.id,reg&&reg.id);
-  return {file,client,city,root,path:rootName+' / '+cityName+' / '+clientName};
+  // the client's own Google Sheet: one row per product, new quotations added at the bottom
+  const sheet=await saveClientSheet(clientName,client.id,T.clientDataRows(M,snap.city));
+  return {file,client,city,root,sheet,path:rootName+' / '+cityName+' / '+clientName};
+}
+const SHEET_MIME='application/vnd.google-apps.spreadsheet';
+async function saveClientSheet(clientName,folderId,rows){
+  const name=clientName+' - client data';
+  const ex=await findFile(name,folderId,false);
+  let old=[];
+  if(ex) old=T.parseCsv(await (await gfetch(DAPI+'/'+ex.id+'/export?mimeType=text%2Fcsv')).text());
+  const csv=T.mergeClientRows(old,rows).map(T.csvLine).join('\r\n')+'\r\n';
+  const blob=new Blob([csv],{type:'text/csv'});
+  if(ex) return (await gfetch(UAPI+'/'+ex.id+'?uploadType=media&fields=id,name,webViewLink',{method:'PATCH',headers:{'Content-Type':'text/csv'},body:blob})).json();
+  return uploadFile(name,SHEET_MIME,blob,folderId,null); // Google converts the CSV into a Google Sheet
 }
 function renderDrive(){
   const on=driveOn(), id=String(F.driveClientId||'').trim();
@@ -2647,7 +2741,7 @@ $('#driveConnect').addEventListener('click',()=>{
 });
 function showDriveSaved(res){
   const el=$('#driveSaved'); el.hidden=false;
-  el.innerHTML='Saved to Google Drive: '+esc(res.path)+(res.file.webViewLink?' · <a href="'+esc(res.file.webViewLink)+'" target="_blank" rel="noopener">open file</a>':'')+(res.client.webViewLink?' · <a href="'+esc(res.client.webViewLink)+'" target="_blank" rel="noopener">client folder</a>':'');
+  el.innerHTML='Saved to Google Drive: '+esc(res.path)+(res.file.webViewLink?' · <a href="'+esc(res.file.webViewLink)+'" target="_blank" rel="noopener">open file</a>':'')+(res.client.webViewLink?' · <a href="'+esc(res.client.webViewLink)+'" target="_blank" rel="noopener">client folder</a>':'')+(res.sheet&&res.sheet.webViewLink?' · <a href="'+esc(res.sheet.webViewLink)+'" target="_blank" rel="noopener">client data sheet</a>':'');
 }
 async function driveUpload(M,snap,buffer,tokP){
   const el=$('#driveSaved'); el.hidden=false; el.textContent='Saving to Google Drive…';
@@ -2692,6 +2786,7 @@ async function download(){
       setTimeout(()=>URL.revokeObjectURL(url),4000);
     }
     upsertCustomer(true,{ref:M.ref,date:M.dateText});
+    recordClientData(M);
     if(driveOn()){ const snap=Object.assign({},F); driveJob=()=>driveUpload(M,snap,buffer, tokP || Promise.reject(new Error('Add the Google OAuth Client ID in Google Drive settings first.'))); }
     F.serial=T.serialOf(F)+1; saveFields(); fillForm(); renderRef();
     toast('Saved. Next quotation will be no. '+T.pad3(F.serial)+'.');

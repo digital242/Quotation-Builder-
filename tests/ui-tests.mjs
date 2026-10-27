@@ -385,6 +385,34 @@ await test('UI: per-item discounts, average discount, apply to all; US$ export m
   await ctx.close();
 });
 
+await test('UI: Export client data (Excel) lists every quoted product for every client', async () => {
+  const { ctx, page } = await newPage();
+  await page.click('#custExport');
+  ok((await lastToast(page)).startsWith('No client data yet'), 'empty: explains');
+  const dlQuote = async (company, city, lines) => {
+    await typeLines(page, lines); await page.keyboard.press('Enter');
+    await page.fill('#f_company', company); await page.keyboard.press('Escape'); await page.fill('#f_city', city);
+    await Promise.all([page.waitForEvent('download'), page.click('#btnDownload')]);
+    await page.click('#btnClear').catch(() => {});
+  };
+  await dlQuote('Brigade Infra', 'Bengaluru', ['solid top 600x600 b125 qty 4', 'FRP grating 1001x366x40 5 ton price 3671 qty 235']);
+  await dlQuote('Indian Oil Corporation', 'Mumbai', ['air water tight 600x600 2.5 ton qty 27']);
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#custExport')]);
+  ok(/^THERMODRAIN_client_data_\d{4}-\d{2}-\d{2}\.xlsx$/.test(dl.suggestedFilename()), dl.suggestedFilename());
+  const file = path.join(OUT, 'ui-client-data.xlsx'); await dl.saveAs(file);
+  const wb = new ExcelJS.Workbook(); await wb.xlsx.readFile(file); const ws = wb.getWorksheet('Client data');
+  eq(ws.getRow(1).values.slice(1).join('|'), 'Date|Quotation ref|Client name|City|Product|Size|Load class|Qty|Discount %|Net rate /pc|Value (excl. GST)|Quote value (incl. GST)|Currency');
+  const rows = []; ws.eachRow((r, n) => { if (n > 1) rows.push(r.values.slice(1)); });
+  const clients = rows.map(r => r[2]);
+  ok(clients.includes('BRIGADE INFRA') && clients.includes('INDIAN OIL CORPORATION'), clients.join());
+  const g = rows.find(r => String(r[5]).startsWith('366mm W X 1001mm L'));
+  ok(g && g[6] === '5 Ton UDL' && g[7] === 235 && g[3] === 'BENGALURU', JSON.stringify(g));
+  ok(rows.some(r => r[2] === 'INDIAN OIL CORPORATION' && r[5] === '600mm X 600mm' && r[6] === '2.5 Ton' && r[7] === 27), 'A&W row');
+  ok((await lastToast(page)).startsWith('Client data exported:'), await lastToast(page));
+  eq(page.errors.length, 0, page.errors.join());
+  await ctx.close();
+});
+
 await test('UI: saved customers (save, pick, delete, auto-save on download, persists)', async () => {
   const { ctx, page } = await newPage();
   await page.evaluate(() => localStorage.removeItem('td_customers'));

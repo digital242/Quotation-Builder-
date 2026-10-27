@@ -41,6 +41,9 @@ function fakeDrive() {
     if (url.pathname === '/drive/v3/files' && method === 'GET') return json({ files: list(url.searchParams.get('q')).map(f => ({ id: f.id, name: f.name, webViewLink: f.webViewLink })) });
     if (url.pathname === '/drive/v3/files' && method === 'POST') { const m = JSON.parse(req.postData()); const f = add({ name: m.name, mimeType: m.mimeType, parents: m.parents || ['root'] }); return json({ id: f.id, name: f.name, webViewLink: f.webViewLink }); }
     let m;
+    // Google Sheets: export as CSV, and a plain media upload replaces the sheet's content
+    if ((m = url.pathname.match(/^\/drive\/v3\/files\/([^/]+)\/export$/))) { const f = files.get(m[1]); if (f.mimeType !== 'application/vnd.google-apps.spreadsheet' || url.searchParams.get('mimeType') !== 'text/csv') return route.fulfill({ status: 400, body: '{}' }); f.exports = (f.exports || 0) + 1; return route.fulfill({ status: 200, contentType: 'text/csv', body: f.data }); }
+    if ((m = url.pathname.match(/^\/upload\/drive\/v3\/files\/([^/]+)$/)) && method === 'PATCH' && url.searchParams.get('uploadType') === 'media') { const f = files.get(m[1]); f.data = req.postDataBuffer(); f.updates = (f.updates || 0) + 1; return json({ id: f.id, name: f.name, webViewLink: f.webViewLink }); }
     if ((m = url.pathname.match(/^\/drive\/v3\/files\/([^/]+)$/)) && url.searchParams.get('alt') === 'media') return route.fulfill({ status: 200, body: files.get(m[1]).data });
     if (url.pathname === '/upload/drive/v3/files' && method === 'POST') { const p = parseMultipart(req.postDataBuffer(), req.headers()['content-type']); const f = add({ name: p.meta.name, mimeType: p.meta.mimeType, parents: p.meta.parents || ['root'], data: p.data }); return json({ id: f.id, name: f.name, webViewLink: f.webViewLink }); }
     if ((m = url.pathname.match(/^\/upload\/drive\/v3\/files\/([^/]+)$/)) && method === 'PATCH') { const p = parseMultipart(req.postDataBuffer(), req.headers()['content-type']); const f = files.get(m[1]); f.data = p.data; return json({ id: f.id, name: f.name, webViewLink: f.webViewLink }); }
@@ -109,7 +112,38 @@ await test('Drive: folders by city and client, every quotation saved, register r
   ok(lines[3].includes('INDIAN OIL CORPORATION,MUMBAI') && lines[3].includes('/003/') && lines[3].includes('3 x 900mm Dia'), lines[3]);
   ok(lines[4].includes('CITY NOT GIVEN'), lines[4]);
   ok(lines[1].includes('https://drive.example/'), 'file link in the register');
+  // each client folder has a Google Sheet with one row per product; a new quotation adds rows
+  const sheets = all.filter(f => f.mimeType === 'application/vnd.google-apps.spreadsheet');
+  eq(sheets.map(f => drive.path(f.id)).sort().join(' | '), ['THERMODRAIN Quotations / BENGALURU / BRIGADE INFRA / BRIGADE INFRA - client data',
+    'THERMODRAIN Quotations / CITY NOT GIVEN / WALK-IN CUSTOMER / WALK-IN CUSTOMER - client data',
+    'THERMODRAIN Quotations / MUMBAI / INDIAN OIL CORPORATION / INDIAN OIL CORPORATION - client data'].join(' | '));
+  const brig = sheets.find(f => f.name.startsWith('BRIGADE'));
+  const rows = brig.data.toString('utf8').trim().split(/\r\n/);
+  eq(rows.length, 4, 'header + one row per product line (the 2nd quotation has 2 products)');
+  eq(rows[0], 'Date,Quotation ref,Client name,City,Product,Size,Load class,Qty,Discount %,Net rate /pc,Value (excl. GST),Quote value (incl. GST),Currency');
+  ok(rows[1].includes('/001/') && rows[1].includes('BRIGADE INFRA,BENGALURU') && rows[1].includes('600mm X 600mm,B 125,4,0,12345,49380,58268.4,INR'), rows[1]);
+  ok(rows[2].includes('/002/') && rows[2].includes('600mm X 600mm'), rows[2]);
+  ok(rows[3].includes('/002/') && rows[3].includes('5 Ton'), rows[3]);
+  eq(brig.updates, 1, 'second quotation updated the same sheet'); eq(brig.exports, 1);
+  ok((await page.locator('#driveSaved a', { hasText: 'client data sheet' }).count()) === 1, 'link to the sheet');
   eq(await page.evaluate(() => window.__tokReq), 1, 'signed in once, reused for every download');
+  eq(page.errors.length, 0, page.errors.join());
+  await ctx.close();
+});
+
+await test('Drive: downloading the same quotation again replaces its rows in the client sheet', async () => {
+  const drive = fakeDrive(); const { ctx, page } = await newPage(drive);
+  await page.click('#driveBox summary'); await page.check('#driveOn'); await page.click('#driveConnect');
+  await page.waitForFunction(() => /Connected/.test(document.querySelector('#driveStatus').textContent));
+  await quote(page, 'Repeat Co', 'Pune', 'solid top 600x600 b125 qty 4');
+  await page.evaluate(() => { const el = document.querySelector('#f_serial'); el.value = '1'; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }); // same quotation number again, e.g. after a correction
+  await page.fill('#quick', 'recess cover 900x600 5 ton qty 2'); await page.press('#quick', 'Enter');
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#btnDownload')]);
+  await page.waitForFunction(() => /Saved to Google Drive/.test(document.querySelector('#driveSaved').textContent));
+  const sh = [...drive.files.values()].find(f => f.name === 'REPEAT CO - client data');
+  const rows = sh.data.toString('utf8').trim().split(/\r\n/);
+  eq(rows.length, 3, 'header + the 2 products of the corrected quotation, old rows replaced');
+  ok(rows.slice(1).every(r => r.includes('/001/')));
   eq(page.errors.length, 0, page.errors.join());
   await ctx.close();
 });
@@ -131,13 +165,15 @@ await test('Drive: a failure never blocks the download; Try again uploads it', a
   await ctx.close();
 });
 
-await test('Drive: off by default; on without a Client ID explains what to do', async () => {
+await test('Drive: off by default (company Client ID built in); on without a Client ID explains what to do', async () => {
   const drive = fakeDrive(); const { ctx, page } = await newPage(drive);
+  eq(await page.inputValue('#f_driveClientId'), '294947591975-gu0rcpscqt0phbk54mbsbsm4slejpc82.apps.googleusercontent.com', 'company Client ID filled in');
+  ok(!(await page.isChecked('#driveOn')), 'still needs the tick in each browser');
   await quote(page, 'No Drive Co', 'Pune', 'solid top 600x600 b125 qty 1', false);
   await page.waitForTimeout(300);
   eq(drive.calls.length, 0, 'nothing sent to Google when Drive is off');
   ok(await page.isHidden('#driveSaved'));
-  await page.click('#driveBox summary'); await page.check('#driveOn');
+  await page.click('#driveBox summary'); await page.fill('#f_driveClientId', ''); await page.check('#driveOn');
   await quote(page, 'No Drive Co', 'Pune', 'solid top 600x600 b125 qty 1');
   ok((await page.textContent('#driveSaved')).includes('Add the Google OAuth Client ID'), await page.textContent('#driveSaved'));
   await ctx.close();

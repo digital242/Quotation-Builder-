@@ -29,6 +29,16 @@ npm test                         # core + Excel tests, then browser tests
 Every downloaded quotation can also be saved to Google Drive:
 `THERMODRAIN Quotations / CITY / CLIENT / QTN_025_Client.xlsx`, plus one row per quotation in
 `THERMODRAIN Quotations / Quotation register.csv` (opens in Google Sheets).
+Each client folder also has a Google Sheet, `CLIENT - client data`, with one row per quoted product
+(date, quotation ref, client, city, product, size, load class, qty, discount %, net rate, value, quote value).
+Each new quotation adds its rows; downloading the same quotation again replaces its rows.
+No extra API is needed: the sheet is kept up to date through the Google Drive API.
+
+**Export client data (Excel)** under Saved customers downloads the same rows for every client,
+from this browser's history (quotations downloaded in this browser).
+
+The company Client ID is built into `GOOGLE_CLIENT_ID`; each browser still ticks
+"Save every downloaded quotation to Google Drive" once and signs in.
 
 One-time setup (company Google account):
 1. console.cloud.google.com: create a project, enable **Google Drive API**.
