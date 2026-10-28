@@ -539,6 +539,16 @@ await test('UI: grating priced per m² and L angle per metre from the picker', a
   ok((await page.textContent('#gRate')).includes('₹11,030/m²'));
   await page.click('#abAdd');
   await page.fill('#gT', '38'); ok(await page.isVisible('#abManual'), 'other heights need a price');
+  ok((await page.textContent('#frameHint')).startsWith('No price list rate for 38 mm height'), await page.textContent('#frameHint'));
+  // a typed rate per m² works out the price per piece, and follows the size
+  await page.click('[data-plate="0"]'); await page.fill('#gT', '38'); await page.fill('#gL', '1000'); await page.fill('#gW', '502');
+  ok(await page.isVisible('#abRateWrap'));
+  await page.fill('#abRateIn', '9000');
+  eq(await page.inputValue('#abPriceIn'), '4518', '0.502 m² × 9000'); eq(await page.textContent('#abAdd'), 'Add 1 to quote, ₹4,518');
+  await page.fill('#gW', '525'); eq(await page.inputValue('#abPriceIn'), '4725', 'price follows the size');
+  // one click back to a listed height
+  await page.click('[data-ht="40"]'); ok(await page.isHidden('#abManual')); eq(await page.textContent('#abAdd'), 'Add 1 to quote, ₹5,223.75');
+  await page.fill('#gL', '1200'); await page.fill('#gW', '604'); await page.click('[data-plate="1"]');
   await page.fill('#gT', '40'); await page.click('[data-plate="0"]');
   await page.click('[data-frame="ms"]'); ok(await page.isVisible('#abManual'), 'a frame needs a price');
   await page.click('[data-frame="none"]');

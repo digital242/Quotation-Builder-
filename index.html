@@ -99,6 +99,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue)}
 .frame-hint{margin:6px 0 0}
 .manual{margin-top:8px;display:flex;flex-direction:column;gap:4px}
 .manual label{font-size:12.5px;font-weight:600}
+.rate-in{display:flex;flex-direction:column;gap:4px;margin-bottom:6px}
+.rate-in small{font-size:12px;color:var(--muted)}
+.ht-presets{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 0}
+.ht-presets button{border:1px solid var(--border);background:#fff;border-radius:999px;padding:6px 12px;font:600 13px/1.2 var(--f-ui);color:var(--text);cursor:pointer}
+.ht-presets button[aria-pressed="true"]{background:var(--blue);border-color:var(--blue);color:#fff}
 .manual input{width:170px;max-width:100%;border:1px solid var(--blue);border-radius:8px;padding:7px 9px;font:600 17px/1.2 var(--f-cond);background:#fff}
 .cust-bar{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px;padding:12px;background:var(--tint);border-radius:12px}
 .cust-bar .fld{flex:1 1 220px}
@@ -468,6 +473,7 @@ dialog.pv::backdrop{background:rgba(27,42,74,.55)}
           <div class="fld"><label for="gW">Width, mm</label><input id="gW" data-g="w" type="number" min="1" inputmode="numeric"></div>
           <div class="fld"><label for="gT">Height, mm</label><input id="gT" data-g="h" type="number" min="1" inputmode="numeric" placeholder="30 or 40"></div>
         </div>
+        <div class="ht-presets" id="htSeg" role="group" aria-label="Height in the price list"></div>
         <span class="field-label" id="lblPlate">Grating type</span>
         <div class="seg" id="plateSeg" role="group" aria-labelledby="lblPlate">
           <button type="button" data-plate="0" aria-pressed="true">Grating</button>
@@ -514,7 +520,7 @@ dialog.pv::backdrop{background:rgba(27,42,74,.55)}
           <span id="abSpec"></span>
           <div class="price" id="abPrice"></div>
           <div class="flag" id="abFlag" role="note" hidden></div>
-          <div class="manual" id="abManual" hidden><label for="abPriceIn">Unit price, ₹ per piece (excl. GST)</label><input id="abPriceIn" type="number" min="0" step="any" inputmode="decimal" placeholder="Enter price"></div>
+          <div class="manual" id="abManual" hidden><div class="rate-in" id="abRateWrap" hidden><label for="abRateIn">Rate, ₹ per m² (excl. GST)</label><input id="abRateIn" type="number" min="0" step="any" inputmode="decimal" placeholder="Rate per m²"><small id="abRateNote"></small></div><label for="abPriceIn">Unit price, ₹ per piece (excl. GST)</label><input id="abPriceIn" type="number" min="0" step="any" inputmode="decimal" placeholder="Enter price"></div>
         </div>
         <div class="act">
           <div class="stepper" role="group" aria-label="Quantity">
@@ -2197,7 +2203,7 @@ function coverSVG(){
   }
   return s;
 }
-function focusKey(){ const a=document.activeElement; if(!a||!a.dataset) return null; for(const k of ['prod','shape','size','frame','load','finish','grate','plate','sec','depth','kind']) if(a.dataset[k]!==undefined) return '[data-'+k+'="'+a.dataset[k]+'"]'; return null; }
+function focusKey(){ const a=document.activeElement; if(!a||!a.dataset) return null; for(const k of ['prod','shape','size','frame','load','finish','grate','plate','sec','ht','depth','kind']) if(a.dataset[k]!==undefined) return '[data-'+k+'="'+a.dataset[k]+'"]'; return null; }
 function renderPicker(){
   const fk=focusKey();
   normalisePicker();
@@ -2219,7 +2225,11 @@ function renderPicker(){
     for(const el of document.querySelectorAll('#customWrap [data-a]')) if(document.activeElement!==el) el.value=P.a[el.dataset.a]??'';
     $('#plateSeg').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String((b.dataset.plate==='1')===!!P.g.plate)));
     $('#secSeg').innerHTML=T.L_ANGLE_SECTIONS.map(k=>'<button type="button" data-sec="'+k+'" aria-pressed="'+(k===P.a.sec)+'">'+esc(k.split('x').join(' × '))+' mm <span class="cnt">₹'+T.L_ANGLE_RATE_M[k]+'/m</span></button>').join('');
-    if(P.ck==='grating') $('#gRate').innerHTML=rateHint(pItem(),'m²');
+    if(P.ck==='grating'){
+      const rates=P.g.plate?T.GRATING_CHQ_RATE_M2:T.GRATING_RATE_M2;
+      $('#htSeg').innerHTML=Object.keys(rates).map(h=>'<button type="button" data-ht="'+h+'" aria-pressed="'+(+P.g.h===+h)+'">'+h+' mm ht · ₹'+esc(T.fmtIN(rates[h],0))+'/m²</button>').join('');
+      $('#gRate').innerHTML=rateHint(pItem(),'m²');
+    }
     if(P.ck==='angle') $('#aRate').innerHTML=rateHint(pItem(),'m');
     if(P.ck==='grating'){ const ti=T.teethInfo(pItem()), te=$('#gTeeth'); te.className='teeth '+ti.teeth; te.innerHTML='<b>'+(ti.teeth==='close'?'Close teeth':'Open teeth')+'</b> '+esc(ti.reason); }
     $('#grateSeg').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.grate===P.ch.grate)));
@@ -2234,7 +2244,8 @@ function renderPicker(){
   const lf = isC ? null : P.prod==='gully' ? null : T.listFrame({prod:P.prod,id:P.id});
   $('#frameSeg').innerHTML=frameOptions().map(fr=>'<button type="button" data-frame="'+fr+'" aria-pressed="'+(fr===P.frame)+'">'+esc(T.FRAME_LABEL[fr])+(lf&&fr===lf?' <span class="cnt">list price</span>':'')+'</button>').join('');
   const manual=T.isManual(pItem());
-  $('#frameHint').textContent = isC ? (P.ck==='multi'?'Multi-cover manhole covers are priced by hand. MS frame is standard. Enter the price per piece below.':P.ck==='grating'?(manual?'The price list has gratings per m² in 30 mm and 40 mm height without frame. For this choice, enter the price per piece below.':'Priced from the price list per m² (without frame). A frame needs a typed price.'):'Chambers are priced by hand. Enter the price per piece below.')
+  $('#frameHint').textContent = isC ? (P.ck==='multi'?'Multi-cover manhole covers are priced by hand. MS frame is standard. Enter the price per piece below.':P.ck==='grating'?(manual?(P.frame!=='none'?'The price list rates per m² are for gratings without frame. With a frame, enter a rate per m² or a price per piece below.'
+      :'No price list rate for '+(+P.g.h>0?P.g.h+' mm':'this')+' height: the list has 30 mm and 40 mm. Pick 30 mm or 40 mm above, or enter a rate per m² or a price per piece below.'):'Priced from the price list per m² (without frame). A frame needs a typed price.'):'Chambers are priced by hand. Enter the price per piece below.')
     : P.prod==='gully' ? 'Both water gully options are in the price list.'
     : manual ? 'The price list has no '+T.lcFirst(T.FRAME_LABEL[P.frame])+' price for this cover. Enter the price per piece below.'
     : lf==='ms' ? 'This twin-cover size is listed with an MS frame.' : 'List prices include the FRP frame.';
@@ -2264,6 +2275,13 @@ function renderPicker(){
   $('#abName').textContent=T.productLabel(item);
   $('#abSpec').textContent=T.specText(item);
   $('#abManual').hidden=!manual;
+  const rateMode = manual && isC && P.ck==='grating';
+  $('#abRateWrap').hidden=!rateMode;
+  if(rateMode){
+    const q=T.customQtyBasis(item);
+    if(document.activeElement!==$('#abRateIn')) $('#abRateIn').value=P.g.rate||'';
+    $('#abRateNote').textContent = +P.g.rate>0 && q ? (+q.toFixed(4))+' m² × ₹'+T.fmtIN(+P.g.rate,0)+' = '+T.rupees(T.round2(q*P.g.rate))+' per piece' : 'Fills in the price per piece from the size';
+  }
   if(manual && document.activeElement!==$('#abPriceIn')) $('#abPriceIn').value=P.price||'';
   const pe=$('#abPrice');
   if(manual){ pe.className='price na'; pe.innerHTML = price===null ? 'Enter the price<small>No list price for this choice</small>' : esc(T.rupees(price))+'<small>per piece, excl. GST, entered by you</small>'; }
@@ -2300,8 +2318,8 @@ $('#loadGrid').addEventListener('click',e=>{ const b=e.target.closest('[data-loa
   if(P.prod==='custom') ({multi:P.m,channel:P.ch,grating:P.g,angle:P.a}[P.ck]||P.c).load=+b.dataset.load; else { if(+b.dataset.load!==P.load) P.price=''; P.load=+b.dataset.load; } renderPicker(); });
 $('#customWrap').addEventListener('input',e=>{ const d=e.target.dataset;
   if(d.c) P.c[d.c]=e.target.value; else if(d.m) P.m[d.m]=e.target.value; else if(d.ch) P.ch[d.ch]=e.target.value; else if(d.g) P.g[d.g]=e.target.value; else if(d.a) P.a[d.a]=e.target.value; else return;
-  if(d.g||d.a) P.price=''; renderPicker(); });
-$('#plateSeg').addEventListener('click',e=>{ const b=e.target.closest('[data-plate]'); if(!b) return; P.g.plate=b.dataset.plate==='1'; P.price=''; renderPicker(); });
+  if(d.g && +P.g.rate>0) gratingPriceFromRate(); else if(d.g||d.a) P.price=''; renderPicker(); });
+$('#plateSeg').addEventListener('click',e=>{ const b=e.target.closest('[data-plate]'); if(!b) return; P.g.plate=b.dataset.plate==='1'; P.price=''; P.g.rate=''; renderPicker(); });
 $('#secSeg').addEventListener('click',e=>{ const b=e.target.closest('[data-sec]'); if(!b) return; P.a.sec=b.dataset.sec; P.price=''; renderPicker(); });
 /* "1.200 m × 0.604 m = 0.725 m² × ₹7,995/m² = ₹5,794.78 per piece" */
 function rateHint(it,unit){
@@ -2311,10 +2329,15 @@ function rateHint(it,unit){
   return 'Price list: '+esc(qt)+' × ₹'+esc(T.fmtIN(r,0))+'/'+unit+' = <b>'+esc(T.rupees(T.customListPrice(it)))+'</b> per piece';
 }
 $('#grateSeg').addEventListener('click',e=>{ const b=e.target.closest('[data-grate]'); if(!b) return; P.ch.grate=b.dataset.grate; renderPicker(); });
-$('#kindSeg').addEventListener('click',e=>{ const b=e.target.closest('[data-kind]'); if(!b||b.dataset.kind===P.ck) return; P.ck=b.dataset.kind; P.price=''; P.frame=P.ck==='grating'||P.ck==='channel'||P.ck==='angle'?'none':'ms'; renderPicker(); });
+$('#kindSeg').addEventListener('click',e=>{ const b=e.target.closest('[data-kind]'); if(!b||b.dataset.kind===P.ck) return; P.ck=b.dataset.kind; P.price=''; P.g.rate=''; P.frame=P.ck==='grating'||P.ck==='channel'||P.ck==='angle'?'none':'ms'; renderPicker(); });
 $('#pDepth').addEventListener('input',e=>{ P.depth=e.target.value; renderPicker(); });
 $('#depthWrap').addEventListener('click',e=>{ const b=e.target.closest('[data-depth]'); if(!b) return; P.depth=b.dataset.depth; $('#pDepth').value=P.depth; renderPicker(); });
-$('#abPriceIn').addEventListener('input',e=>{ P.price=e.target.value; renderPicker(); });
+$('#abPriceIn').addEventListener('input',e=>{ P.price=e.target.value; if(P.ck==='grating') P.g.rate=''; renderPicker(); });
+/* A typed rate per m² for a grating the price list doesn't cover: price per piece = area × rate. */
+function gratingPriceFromRate(){ const q=T.customQtyBasis(pItem()), r=+P.g.rate; P.price = r>0 && q ? String(T.round2(q*r)) : ''; }
+$('#abRateIn').addEventListener('input',e=>{ P.g.rate=e.target.value; gratingPriceFromRate(); renderPicker(); });
+$('#abRateIn').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); if(!$('#abAdd').disabled) $('#abAdd').click(); } });
+$('#htSeg').addEventListener('click',e=>{ const b=e.target.closest('[data-ht]'); if(!b) return; P.g.h=b.dataset.ht; P.price=''; P.g.rate=''; renderPicker(); });
 $('#abPriceIn').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); if(!$('#abAdd').disabled) $('#abAdd').click(); } });
 $('#abMinus').addEventListener('click',()=>{ P.qty=Math.max(1,P.qty-1); renderPicker(); });
 $('#abPlus').addEventListener('click',()=>{ P.qty=Math.min(9999,P.qty+1); renderPicker(); });
