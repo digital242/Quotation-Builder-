@@ -51,21 +51,22 @@ const FOUR = [
 await test('1. four pasted lines add 4 items at the right prices', () => {
   const rs = FOUR.map(l => TD.parseLine(l));
   rs.forEach((r, i) => ok(r.ok, 'line ' + (i + 1) + ' failed: ' + r.error));
-  const exp = [['solid', 's600', 2, 'frp', 4, 12345, 49380], ['solid', 's1000', 4, 'frp', 2, 69140, 138280],
-    ['gully', 'r335x930', 1, 'without', 2, 4200, 8400], ['recess', 'r900x600', 1, 'frp', 4, 17740, 70960]];
+  // price lists w.e.f. 05.10.2026
+  const exp = [['solid', 's600', 2, 'frp', 4, 12720, 50880], ['solid', 's1000', 4, 'frp', 2, 71215, 142430],
+    ['gully', 'r335x930', 1, 'without', 2, 4330, 8660], ['recess', 'r900x600', 1, 'frp', 4, 18630, 74520]];
   rs.forEach((r, i) => {
     const [prod, id, load, frame, qty, price, amt] = exp[i];
     eq(r.item.prod, prod); eq(r.item.id, id); eq(r.item.load, load); eq(r.item.frame, frame); eq(r.item.qty, qty);
     eq(r.price, price); eq(r.amount, amt);
   });
-  eq(TD.describeParsed(rs[0]), 'Solid Top MHC, 600 × 600 mm, B125 — 4 nos × ₹12,345 = ₹49,380');
+  eq(TD.describeParsed(rs[0]), 'Solid Top MHC, 600 × 600 mm, B125 — 4 nos × ₹12,720 = ₹50,880');
   const t = TD.totals(rs.map(r => r.item), 0, true);
-  eq(TD.rupees2(t.sub), '₹2,67,020.00'); eq(TD.rupees2(t.gst), '₹48,063.60'); eq(TD.rupees2(t.grand), '₹3,15,083.60');
-  eq(TD.rupees(rs[1].amount), '₹1,38,280');
+  eq(TD.rupees2(t.sub), '₹2,76,490.00'); eq(TD.rupees2(t.gst), '₹49,768.20'); eq(TD.rupees2(t.grand), '₹3,26,258.20');
+  eq(TD.rupees(rs[1].amount), '₹1,42,430');
 });
-await test('2. air water tight 750x750 c250 3 nos → 3 × ₹27,695 = ₹83,085', () => {
+await test('2. air water tight 750x750 c250 3 nos → 3 × ₹28,530 = ₹85,590', () => {
   const r = TD.parseLine('air water tight 750x750 c250 3 nos');
-  ok(r.ok, r.error); eq(r.item.prod, 'aw'); eq(r.item.id, 's750'); eq(r.item.load, 3); eq(r.item.qty, 3); eq(r.price, 27695); eq(r.amount, 83085);
+  ok(r.ok, r.error); eq(r.item.prod, 'aw'); eq(r.item.id, 's750'); eq(r.item.load, 3); eq(r.item.qty, 3); eq(r.price, 28530); eq(r.amount, 85590);
 });
 await test('3. solid 777x777 b125 → not-in-price-list error', () => {
   const r = TD.parseLine('solid 777x777 b125 qty 1');
@@ -75,25 +76,25 @@ await test('4. recess 600x600 e600 → on-request error', () => {
   const r = TD.parseLine('recess 600x600 e600 qty 1');
   ok(!r.ok); eq(r.error, "E600 is on request for this size, so it can't be priced here.");
 });
-await test('5. gully with frame → ₹7,300 in its own WITH FRAME group', () => {
+await test('5. gully with frame → ₹7,520 in its own WITH FRAME group', () => {
   const r = TD.parseLine('water gully 395x990 5 ton with frame qty 2');
-  ok(r.ok, r.error); eq(r.item.frame, 'with'); eq(r.price, 7300); eq(r.item.qty, 2);
+  ok(r.ok, r.error); eq(r.item.frame, 'with'); eq(r.price, 7520); eq(r.item.qty, 2);
   const items = [];
   addAll(items, ['Water gully cover 395x990 5 tons quantity 2', 'water gully 395x990 5 ton with frame qty 2']);
   const M = TD.buildModel(items, FIELDS, 0, true);
   eq(M.groups.length, 2);
   eq(M.groups[0].title, '‘THERMODRAIN’ FRP WATER GULLY COVER WITHOUT FRAME (with 2 side support & inbuilt beam design)');
   eq(M.groups[1].title, '‘THERMODRAIN’ FRP WATER GULLY COVER WITH FRAME');
-  eq(M.groups[1].items[0].price, 7300);
+  eq(M.groups[1].items[0].price, 7520);
   eq(M.sizeHeader, 'SIZE', 'out-to-out and clear-opening sizes mixed');
   eq(M.groups[0].items[0].wording, '395mm W X 990mm L (out to out)');
   eq(M.groups[1].items[0].wording, '335mm X 930mm', 'with a frame: the clear opening');
   eq(TD.buildModel([items[0]], FIELDS, 0, true).sizeHeader, 'OUT TO OUT SIZE');
   eq(TD.buildModel([items[1]], FIELDS, 0, true).sizeHeader, 'CLEAR OPENING SIZE');
 });
-await test('6. tank 600 qty 3 → ₹5,420 at 500 KG', () => {
+await test('6. tank 600 qty 3 → ₹5,585 at 500 KG', () => {
   const r = TD.parseLine('tank 600 qty 3');
-  ok(r.ok, r.error); eq(r.item.prod, 'tank'); eq(r.item.id, 'c600'); eq(r.price, 5420); eq(r.item.qty, 3);
+  ok(r.ok, r.error); eq(r.item.prod, 'tank'); eq(r.item.id, 'c600'); eq(r.price, 5585); eq(r.item.qty, 3);
   eq(TD.loadPrint('tank', r.item.load), '500 KG');
 });
 await test('7. same item twice merges into one line', () => {
@@ -131,7 +132,7 @@ await test('parser: errors are plain sentences', () => {
   eq(TD.parseLine('solid top b125 qty 3').error, 'Add the size, for example 600x600 or 900 dia.');
 });
 await test('parser: circular, × and *, twin preference, gully out-to-out map', () => {
-  const r = TD.parseLine('solid 900 dia D400 qty 1'); eq(r.item.id, 'c900'); eq(r.price, 31895);
+  const r = TD.parseLine('solid 900 dia D400 qty 1'); eq(r.item.id, 'c900'); eq(r.price, 32855);
   eq(TD.parseLine('solid 600×600 b125').item.id, 's600');
   eq(TD.parseLine('solid 600*450 b125').item.id, 'r600x450');
   eq(TD.parseLine('solid 450x600 b125').item.id, 'r600x450');
@@ -152,13 +153,15 @@ await test('price-review flags', () => {
   ok(TD.flagFor({ prod: 'recess', id: 'c1000', load: 3 }));
 });
 await test('price data is untouched (spot checks + null = on request)', () => {
-  eq(TD.priceOf('solid', 's1500', 5), 222770);
-  eq(TD.priceOf('aw', 's1500', 5), 289600);
+  eq(TD.priceOf('solid', 's1500', 5), 229455);
+  eq(TD.priceOf('aw', 's1500', 5), 298290);
   eq(TD.priceOf('recess', 's1500', 5), null);
   eq(TD.priceOf('solid', 's900t', 1), null);
-  eq(TD.priceOf('gully', 'c600', 0, 'with'), 8295);
-  eq(TD.priceOf('gully', 'c600', 0, 'without'), 7200);
-  eq(TD.priceOf('tank', 's750', 3), 7525);
+  eq(TD.priceOf('gully', 'c600', 0, 'with'), 8545);
+  eq(TD.priceOf('gully', 'c600', 0, 'without'), 7420);
+  eq(TD.priceOf('gully', 's900', 4, 'without'), 43310); eq(TD.priceOf('gully', 's900', 4, 'with'), 43115); // as printed
+  eq(TD.priceOf('recess', 's1500', 4), 248525); eq(TD.priceOf('hinged', 's600', 5), 35400); eq(TD.priceOf('tank', 'c750', 0), 7110);
+  eq(TD.priceOf('tank', 's750', 3), 7755);
 });
 await test('wording, subject and intro', () => {
   // company QTN format: "450mm X 450mm", "600mm Dia"
@@ -216,7 +219,7 @@ await test('chambers: fully custom size, finish, load, frame and price', () => {
 });
 await test('frames: FRP is list price; without frame needs a typed price; MS only for multi-cover and chambers', () => {
   const a = TD.parseLine('solid 600x600 b125 qty 2');
-  eq(a.item.frame, 'frp'); eq(a.price, 12345);
+  eq(a.item.frame, 'frp'); eq(a.price, 12720);
   eq(TD.parseLine('solid 600x600 b125 ms frame price 15000 qty 2').error, 'MS frame is only for multi-cover manhole covers (2 covers, single frame) and chambers. Use FRP frame or without frame for this cover.');
   eq(TD.allowedFrames('solid', 's600').join(), 'frp,none'); eq(TD.allowedFrames('solid', 's900t').join(), 'ms,frp,none');
   eq(TD.allowedFrames('custom').join(), 'ms,frp,none'); eq(TD.allowedFrames('gully', 's600').join(), 'without,with');
@@ -231,9 +234,9 @@ await test('frames: FRP is list price; without frame needs a typed price; MS onl
   ok(none.ok, none.error); eq(none.item.frame, 'none');
   // twin rows are listed with an MS frame
   const tw = { prod: 'solid', id: 's900t', load: 0, frame: null, qty: 1 };
-  eq(TD.normFrame('solid', null, 's900t'), 'ms'); eq(TD.unitPrice({ ...tw, frame: 'ms' }), 20725); eq(TD.isManual({ ...tw, frame: 'frp' }), true);
+  eq(TD.normFrame('solid', null, 's900t'), 'ms'); eq(TD.unitPrice({ ...tw, frame: 'ms' }), 21350); eq(TD.isManual({ ...tw, frame: 'frp' }), true);
   // the typed price never replaces a list price
-  eq(TD.parseLine('solid 600x600 b125 price 1 qty 1').price, 12345);
+  eq(TD.parseLine('solid 600x600 b125 price 1 qty 1').price, 12720);
   const M = TD.buildModel([a.item, msf.item, none.item, { ...tw, frame: 'ms' }], FIELDS, true);
   eq(M.groups.map(g => g.title).join(' | '),
     '‘THERMODRAIN’ FRP MANHOLE COVERS WITH FRAME | ‘THERMODRAIN’ FRP MANHOLE COVERS WITHOUT FRAME | ‘THERMODRAIN’ FRP AIR & WATER TIGHT COVERS WITHOUT FRAME (with Gasket press fit type) | ‘THERMODRAIN’ FRP MANHOLE COVERS WITH MS FRAME');
@@ -241,7 +244,7 @@ await test('frames: FRP is list price; without frame needs a typed price; MS onl
 });
 await test('recess depth prints in the wording and keeps the list price', () => {
   const r = TD.parseLine('recess 600x600 b125 depth 75 qty 2');
-  ok(r.ok, r.error); eq(r.item.depth, 75); eq(r.price, 16925);
+  ok(r.ok, r.error); eq(r.item.depth, 75); eq(r.price, 17775);
   eq(TD.defaultWording(r.item), '600mm X 600mm, recess depth 75mm');
   eq(TD.parseLine('recess 600x600 b125 50 mm deep').item.depth, 50);
   eq(TD.depthOf({ prod: 'solid', depth: 75 }), null);
@@ -249,15 +252,15 @@ await test('recess depth prints in the wording and keeps the list price', () => 
 await test('per-item discounts and the average discount', () => {
   const items = [{ ...TD.parseLine('solid 600x600 b125 qty 4').item, disc: 10 }, { ...TD.parseLine('recess 900x600 5 ton qty 4').item, disc: 20 }];
   const t = TD.totals(items, true);
-  near(t.sub, 49380 + 70960); near(t.disc, 4938 + 14192); eq(t.uniformPct, null);
-  near(t.avgPct, (4938 + 14192) / 120340 * 100);
+  near(t.sub, 50880 + 74520); near(t.disc, 5088 + 14904); eq(t.uniformPct, null);
+  near(t.avgPct, (5088 + 14904) / 125400 * 100);
   const M = TD.buildModel(items, FIELDS, true);
   // each line is quoted at its net rate; GST is on the net total, no separate discount row
   eq(M.totalRows.map(r => r.label).join(' | '), 'TOTAL | PLUS GST @ 18% | TOTAL');
   eq(M.priceHdr, 'NET RATE /PC (RS)');
   const rows = M.groups.flatMap(g => g.items);
-  eq(rows[0].price, 11110.5); eq(rows[0].list, 12345); eq(rows[0].amount, 44442);
-  near(M.totalRows[0].value, 44442 + 70960 * 0.8); near(M.totalRows[1].value, (44442 + 56768) * 0.18);
+  eq(rows[0].price, 11448); eq(rows[0].list, 12720); eq(rows[0].amount, 45792);
+  near(M.totalRows[0].value, 45792 + 74520 * 0.8); near(M.totalRows[1].value, (45792 + 59616) * 0.18);
   eq(TD.buildModel([TD.parseLine('solid 600x600 b125 qty 4').item], FIELDS, true).priceHdr, 'PRICE /PC (RS)', 'no discount: plain price');
   eq(TD.parseLine('solid 600x600 b125 qty 4 10% disc').item.disc, 10);
   eq(TD.parseLine('solid 600x600 b125 qty 4 discount 12.5').item.disc, 12.5);
@@ -268,21 +271,21 @@ await test('GST and USD never mix: ₹ + GST, ₹ GST extra, or US$ export witho
   const G = TD.buildModel(items, { ...FIELDS, usdRate: '88.5' }, 'gst');
   eq(G.cur, 'INR'); ok(!G.totalRows.some(r => /US\$|USD/.test(r.label)), 'no USD in a GST quotation');
   ok(!TD.whatsappText(G).includes('US$'), 'no USD in the GST WhatsApp text');
-  near(G.totals.grand, 315083.6);
+  near(G.totals.grand, 326258.2);
   const U = TD.buildModel(items, { ...FIELDS, usdRate: '88.5' }, 'usd');
   eq(U.cur, 'USD'); eq(U.totals.gst, 0); eq(U.totals.gstOn, false);
-  eq(U.groups.map(g => g.items.map(i => i.price).join('/')).join(' | '), '139.49/781.24 | 47.46 | 200.45');
-  near(U.totals.sub, 3017.16); near(U.totals.grand, 3017.16);
+  eq(U.groups.map(g => g.items.map(i => i.price).join('/')).join(' | '), '143.73/804.69 | 48.93 | 210.51');
+  near(U.totals.sub, 3124.2); near(U.totals.grand, 3124.2);
   ok(!U.totalRows.some(r => /GST/.test(r.label)), 'no GST rows in an export quotation');
   eq(U.totalRows[U.totalRows.length - 1].label, 'TOTAL (US$)');
   eq(U.priceHdr, 'PRICE /PC (US$)'); eq(U.totalHdr, 'TOTAL PRICE (US$)');
   eq(U.terms[0][1], 'Not applicable (export order, prices in US$)');
   const wa = TD.whatsappText(U);
-  ok(wa.includes('*Total in US$ (export, no GST): US$ 3,017.16*') && !wa.includes('₹'), wa);
+  ok(wa.includes('*Total in US$ (export, no GST): US$ 3,124.20*') && !wa.includes('₹'), wa);
   eq(TD.buildModel(items, FIELDS, 'usd').usdMissing, true);
   eq(TD.usd2(3560.27), 'US$ 3,560.27');
   const N = TD.buildModel(items, { ...FIELDS, usdRate: '88.5' }, 'nogst');
-  eq(N.cur, 'INR'); eq(N.terms[0][1], '18% Extra'); near(N.totals.grand, 267020);
+  eq(N.cur, 'INR'); eq(N.terms[0][1], '18% Extra'); near(N.totals.grand, 276490);
 });
 
 await test('multi-cover manhole covers are fully custom (size, covers, frame, load, price)', () => {
@@ -387,7 +390,7 @@ await test('8. 48% discount: net rate per item, GST on the net total, formulas a
   const H = r => ws.getCell('H' + r).value;
   // independent net total: each list price less 48%, to the paisa, times qty
   let net = 0; for (const ln of FOUR) { const it = TD.parseLine(ln).item; net += Math.round(TD.unitPrice(it) * 52) / 100 * it.qty; }
-  ok(net < 267020 * 0.53 && net > 267020 * 0.51, 'net about 52% of 267020');
+  ok(net < 276490 * 0.53 && net > 276490 * 0.51, 'net about 52% of 276490');
   eq(H(at.total).formula, `SUM(H${f}:H${l})`); near(H(at.total).result, net);
   eq(H(at.gst).formula, `H${at.total}*18%`); near(H(at.gst).result, Math.round(net * 18) / 100);
   eq(H(at.grand).formula, `H${at.total}+H${at.gst}`); near(H(at.grand).result, Math.round(net * 118) / 100);
@@ -397,7 +400,7 @@ await test('8. 48% discount: net rate per item, GST on the net total, formulas a
   let n = 0;
   for (let r = f; r <= l; r++) { const v = H(r); if (v && v.formula) { n++; eq(v.formula, `G${r}*F${r}`); eq(typeof ws.getCell('G' + r).value, 'number', 'net rate is a plain number, list price not revealed'); near(v.result, ws.getCell('G' + r).value * ws.getCell('F' + r).value); } }
   eq(n, 4);
-  eq(ws.getCell('G' + (f + 2)).value, 6419.4, '12345 less 48%'); // title row, note row, then the item
+  eq(ws.getCell('G' + (f + 2)).value, 6614.4, '12720 less 48%'); // title row, note row, then the item
 });
 await test('Excel: sheet setup (name, A4, fit 1×1, margins, gridlines, widths, print area, fonts)', async () => {
   const { ws, lastRow } = x48;
@@ -455,14 +458,14 @@ await test('Excel: chambers, MS frame, depth, mixed discounts, USD row and addre
   ok(find('1000mm L X 1000mm W X 600mm H, two-sided finish'), 'chamber wording');
   ok(find('600mm X 600mm, recess depth 75mm'), 'depth wording');
   eq(at.disc, undefined, 'no discount row: lines are at net rate');
-  near(ws.getCell('H' + at.total).value.result, 49380 * 0.9 + 33850 * 0.8 + 90000 + 30000);
+  near(ws.getCell('H' + at.total).value.result, 50880 * 0.9 + 35550 * 0.8 + 90000 + 30000);
   ok(find('NET RATE /PC (RS)'), 'net rate header');
   eq(at.usd, undefined, 'no USD row on a GST quotation');
 });
 await test('drain channel and grating: typed lines, checklist, wording and Excel groups', async () => {
   const ch = TD.parseLine('drain channel 1000x300x300 D400 price 8500 qty 10');
   ok(ch.ok, ch.error); eq(ch.item.kind, 'channel'); eq(ch.item.grate, 'with'); eq(ch.item.h, 300); eq(ch.item.qty, 10); eq(TD.unitPrice(ch.item), 8500);
-  eq(TD.defaultWording(ch.item), '1000mm L X 300mm W X 300mm D, with FRP grating');
+  eq(TD.defaultWording(ch.item), '300mm (W) X 300mm (Ht) X 1000mm (Lt), with FRP grating', 'longest side is the length');
   const ch2 = TD.parseLine('FRP drain channel without grating 1000x200x250 price 5000 nos 4');
   ok(ch2.ok, ch2.error); eq(ch2.item.grate, 'without'); eq(ch2.item.qty, 4); eq(ch2.item.h, 250);
   const g = TD.parseLine('FRP grating 1000x500 38 mm thick C250 price 6500 qty 3');
@@ -473,7 +476,21 @@ await test('drain channel and grating: typed lines, checklist, wording and Excel
   eq(TD.parseLine('gully grating 300x300 C250 qty 2').item.prod, 'gully', 'gully grating stays a gully cover');
   eq(TD.parseLine('grating cover 600x600 b125 qty 2').item.prod, 'gully', 'grating cover stays a gully cover');
   ok(/price/.test(TD.parseLine('drain channel 1000x300x300 qty 2').error), 'price needed');
-  ok(/length x width x depth/.test(TD.parseLine('drain channel 1000x300 price 500 qty 2').error), 'depth needed');
+  ok(/width x height x length/.test(TD.parseLine('drain channel 1000x300 price 500 qty 2').error), 'three sizes needed');
+  // drain channel price list w.e.f. 05.10.2026
+  const dc = l => { const r = TD.parseLine(l); ok(r.ok, l + ': ' + r.error); return r; };
+  let d = dc('drain channel 326x300x1000 D400 qty 10'); eq(d.price, 19035); eq(TD.isManual(d.item), false);
+  eq(TD.defaultWording(d.item), '326mm (W) X 300mm (Ht) X 1000mm (Lt), with FRP grating');
+  eq(dc('drain channel 1000x326x300 d400 qty 1').price, 19035, 'length typed first');
+  eq(dc('drain channel 128x155x1000 c250 qty 5').price, 9045); eq(dc('drain channel 167x155x1000 2.5 ton qty 1').price, 8210);
+  eq(dc('drain channel 525x300x1000 5 ton qty 1').price, 16300);
+  ok(/not priced for C250/.test(TD.parseLine('drain channel 525x300x1000 c250 qty 1').error));
+  d = dc('drain channel with slit cover 155x100x950 2.5 ton qty 3'); eq(d.price, 9645); eq(d.item.grate, 'slit');
+  eq(TD.defaultWording(d.item), '155mm (W) X 100mm (Ht) X 950mm (Lt), with slit cover');
+  eq(TD.groupTitle(TD.groupKey(d.item)), '‘THERMODRAIN’ FRP DRAIN CHANNEL WITH SLIT COVER');
+  eq(dc('slit cover drain channel 350x100x1000 2.5 t qty 1').price, 14875);
+  ok(/load class: 2.5 T\./.test(TD.parseLine('drain channel slit cover 155x155x950 qty 2').error), TD.parseLine('drain channel slit cover 155x155x950 qty 2').error);
+  eq(TD.checkLine('drain channel 326x300x1000 D400 qty 10').state, 'ready', 'no price needed for a listed channel');
   eq(TD.checkLine('drain channel 1000x300x300 price 8500 qty 10').state, 'ready');
   eq(TD.checkLine('channel 1000x300x300 price 8500 qty 10').state, 'pending', '"channel" alone is not the full name');
   eq(TD.checkLine('FRP grating 1000x500 price 6500 qty 3').state, 'ready');
@@ -485,7 +502,7 @@ await test('drain channel and grating: typed lines, checklist, wording and Excel
   ok(find('‘THERMODRAIN’ FRP GRATINGS (DIMENSIONAL TOLERANCE IS ± 3mm)'), 'grating heading, tolerance not bold');
   ok(find('500mm W X 1000mm L x 38mm ht, open teeth'), 'grating wording');
   ok(find(TD.NOTE_GRATING), 'grating note');
-  near(x.ws.getCell('H' + x.totalRowsAt.total).value.result, 85000 + 20000 + 3 * 4975 + 4 * /* 38 mm grating: 0.5 m² at the 40 mm rate 9950 */ TD.unitPrice(TD.parseLine('solid 600x600 b125 qty 4').item));
+  near(x.ws.getCell('H' + x.totalRowsAt.total).value.result, 85000 + 20000 + 3 * 5175 + 4 * /* 38 mm grating: 0.5 m² at the 40 mm rate 9950, + 200 per piece */ TD.unitPrice(TD.parseLine('solid 600x600 b125 qty 4').item));
 });
 await test('gratings: close teeth for catalogue sizes (30 / 40 mm high, max 1000 x 2430), open teeth for any other size', async () => {
   eq(TD.CLOSE_TEETH_SIZES.length, 61); eq(TD.CLOSE_TEETH_SIZES[0], 48); eq(TD.CLOSE_TEETH_SIZES[60], 2430);
@@ -525,7 +542,7 @@ await test('client data: one row per product, CSV round trip, same quotation rep
   const M = TD.buildModel(items, { ...FIELDS, address: '' }, 'gst');
   const rows = TD.clientDataRows(M, 'Bengaluru');
   eq(rows.length, 2);
-  eq(JSON.stringify(rows[0]), JSON.stringify(['2026-09-24', 'THERMODRAIN/QTN/TP1-BGLR/025/2026-27', 'ACME INFRA PVT LTD', 'BENGALURU', 'Solid Top MHC', '600mm X 600mm', 'B 125', 4, 10, 11110.5, 44442, TD.round2(M.totals.grand), 'INR']));
+  eq(JSON.stringify(rows[0]), JSON.stringify(['2026-09-24', 'THERMODRAIN/QTN/TP1-BGLR/025/2026-27', 'ACME INFRA PVT LTD', 'BENGALURU', 'Solid Top MHC', '600mm X 600mm', 'B 125', 4, 10, 11448, 45792, TD.round2(M.totals.grand), 'INR']));
   eq(rows[1][6], '5 Ton UDL'); eq(rows[1][5], '366mm W X 1001mm L x 40mm ht, close teeth');
   const csv = [TD.CLIENT_DATA_HEAD, ...rows, ['x', 'y', 'Comma, "quoted"\nline']].map(TD.csvLine).join('\r\n');
   const back = TD.parseCsv('\uFEFF' + csv + '\r\n');
@@ -538,7 +555,7 @@ await test('client data: one row per product, CSV round trip, same quotation rep
   const wb2 = new ExcelJS.Workbook(); await wb2.xlsx.readFile(file); const ws = wb2.getWorksheet('Client data');
   eq(ws.getRow(1).values.slice(1).join('|'), TD.CLIENT_DATA_HEAD.join('|'));
   eq(ws.rowCount, 4); eq(ws.getCell('C2').value, 'ACME INFRA PVT LTD'); eq(ws.getCell('C4').value, 'ZETA CO', 'sorted by client');
-  ok(ws.getCell('A2').value instanceof Date); eq(ws.getCell('H2').value, 4); eq(ws.getCell('K2').value, 44442);
+  ok(ws.getCell('A2').value instanceof Date); eq(ws.getCell('H2').value, 4); eq(ws.getCell('K2').value, 45792);
   ok(ws.autoFilter, 'filter on the header');
 });
 await test('gratings per m² and L angle per metre, from the price list w.e.f. 10.08.2026', async () => {
@@ -548,21 +565,21 @@ await test('gratings per m² and L angle per metre, from the price list w.e.f. 1
   eq(JSON.stringify(TD.L_ANGLE_RATE_M), '{"35x35x4":520,"45x45x4":640}');
   const p = l => { const r = TD.parseLine(l); ok(r.ok, l + ': ' + r.error); return r; };
   let r = p('FRP grating 1200x604 30 mm ht qty 3');
-  eq(r.price, 5794.78, '1.2 × 0.604 m² × 7995'); eq(TD.isManual(r.item), false); eq(r.item.qty, 3);
-  r = p('grating 1001x366x40 5 ton qty 235'); eq(r.price, Math.round(1.001 * 0.366 * 9950 * 100) / 100);
+  eq(r.price, 5994.78, '1.2 × 0.604 m² × 7995 + 200 per piece (other regions)'); eq(TD.isManual(r.item), false); eq(r.item.qty, 3);
+  r = p('grating 1001x366x40 5 ton qty 235'); eq(r.price, Math.round(1.001 * 0.366 * 9950 * 100) / 100 + 200);
   eq(TD.defaultWording(r.item), '366mm W X 1001mm L x 40mm ht, close teeth');
-  r = p('grating 1200x604 40mm ht chequered plate qty 2'); eq(r.price, Math.round(1.2 * 0.604 * 13000 * 100) / 100); eq(r.item.plate, true);
+  r = p('grating 1200x604 40mm ht chequered plate qty 2'); eq(r.price, Math.round(1.2 * 0.604 * 13000 * 100) / 100 + 200); eq(r.item.plate, true);
   eq(TD.defaultWording(r.item), '604mm W X 1200mm L x 40mm ht, close teeth, with chequered plate (one side closed)');
   eq(TD.groupTitle(TD.groupKey(r.item)), '‘THERMODRAIN’ FRP GRATINGS WITH CHEQUERED PLATE');
   eq(TD.groupTitleTail(TD.groupKey(r.item)), ' (one side closed) (DIMENSIONAL TOLERANCE IS ± 3mm)');
-  eq(p('grating 1200x604 one side closed 30 mm ht qty 1').price, 7994.54, 'one side closed = chequered plate, 30 mm: 0.7248 × 11030');
-  eq(p('grating 1200x604 30mm ht price 1 qty 1').price, 5794.78, 'a typed price never replaces a list price');
+  eq(p('grating 1200x604 one side closed 30 mm ht qty 1').price, 8194.54, 'one side closed = chequered plate, 30 mm: 0.7248 × 11030');
+  eq(p('grating 1200x604 30mm ht price 1 qty 1').price, 5994.78, 'a typed price never replaces a list price');
   // heights between list heights use the next listed height up
-  r = p('grating 1200x604x38 qty 1'); eq(r.price, 7211.76, '38 mm at the 40 mm rate: 0.7248 × 9950'); eq(TD.rateHeight(r.item), 40);
+  r = p('grating 1200x604x38 qty 1'); eq(r.price, 7411.76, '38 mm at the 40 mm rate: 0.7248 × 9950 + 200'); eq(TD.rateHeight(r.item), 40);
   eq(TD.defaultWording(r.item), '604mm W X 1200mm L x 38mm ht, open teeth', 'prints the real height');
-  eq(p('grating 1200x604x25 qty 1').price, 5794.78, '25 mm at the 30 mm rate');
-  eq(p('grating 1000x502x38 qty 1').price, 4994.9, '0.502 × 9950');
-  eq(p('grating 1200x604x38 chequered plate qty 1').price, 9422.4, '38 mm chequered at the 40 mm rate 13000');
+  eq(p('grating 1200x604x25 qty 1').price, 5994.78, '25 mm at the 30 mm rate');
+  eq(p('grating 1000x502x38 qty 1').price, 5194.9, '0.502 × 9950');
+  eq(p('grating 1200x604x38 chequered plate qty 1').price, 9622.4, '38 mm chequered at the 40 mm rate 13000');
   ok(/up to 40 mm/.test(TD.parseLine('grating 1200x604x50 qty 1').error), 'above 40 mm needs a price');
   eq(p('grating 1200x604x50 price 5000 qty 1').price, 5000);
   ok(/without frame/.test(TD.parseLine('grating 1200x604x30 ms frame qty 1').error), 'a frame needs a price');
@@ -583,7 +600,7 @@ await test('gratings per m² and L angle per metre, from the price list w.e.f. 1
   const x = await makeXlsx('QTN_angle.xlsx', ['FRP grating 1200x604 30 mm ht qty 3', 'L angle 35x35x4 3000 mm long qty 10'], 0, true);
   const find = txt => { let hit = null; x.ws.eachRow(row => row.eachCell(c => { if (!hit && cellText(c.value) === txt) hit = c; })); return hit; };
   ok(find('‘THERMODRAIN’ FRP ‘L’ ANGLE'), 'L angle heading'); ok(find('35mm X 35mm X 4mm thk, 3000mm long'));
-  near(x.ws.getCell('H' + x.totalRowsAt.total).value.result, 5794.78 * 3 + 15600);
+  near(x.ws.getCell('H' + x.totalRowsAt.total).value.result, 5994.78 * 3 + 15600);
 });
 await test('Excel: US$ export quotation has US$ prices, no GST rows, and says GST not applicable', async () => {
   const x = await makeXlsx('QTN_usd.xlsx', [...FOUR, 'chamber 1000x1000x600 two sided b125 price 45000 qty 2'], undefined, 'usd', { ...FIELDS, usdRate: '88.5' });
@@ -592,7 +609,7 @@ await test('Excel: US$ export quotation has US$ prices, no GST rows, and says GS
   ok(find('PRICE /PC (US$)') && find('TOTAL PRICE (US$)'), 'US$ headers');
   eq(Object.keys(at).join(','), 'total');
   eq(ws.getCell('E' + at.total).value, 'TOTAL (US$)'); ok(ws.getCell('E' + at.total).font.bold);
-  near(ws.getCell('H' + at.total).value.result, 3017.16 + 508.47 * 2);
+  near(ws.getCell('H' + at.total).value.result, 3124.2 + 508.47 * 2);
   eq(ws.getCell('G' + (x.firstItemRow + 2)).numFmt, '#,##0.00');
   ok(find(': Not applicable (export order, prices in US$)'), 'GST term');
   let gstRows = 0; ws.eachRow(row => { if (/GST @|INCL\. 18% GST/.test(String(row.getCell(5).value))) gstRows++; }); eq(gstRows, 0);
@@ -639,7 +656,7 @@ await test('9b. H-column formulas recalculate after a qty is edited', async () =
   const wb = new ExcelJS.Workbook(); await wb.xlsx.readFile(x48.file);
   const ws = wb.getWorksheet('Quotation');
   const r = x48.firstItemRow + 2; // first item row (after the group title and note)
-  eq(ws.getCell('G' + r).value, 6419.4); // 12345 less 48%
+  eq(ws.getCell('G' + r).value, 6614.4); // 12720 less 48%
   ws.getCell('F' + r).value = 10; // was 4
   ws.eachRow(row => row.eachCell(c => { if (c.value && c.value.formula) c.value = { formula: c.value.formula }; })); // drop cached results
   const edited = path.join(OUT, 'edited.xlsx'); await wb.xlsx.writeFile(edited);
@@ -650,7 +667,7 @@ await test('9b. H-column formulas recalculate after a qty is edited', async () =
   ok(line, 'item line in csv');
   const grand = fs.readFileSync(path.join(OUT, 'edited.csv'), 'utf8').split('\n').filter(l => /,TOTAL,/.test(l.replace(/"/g, ''))).pop();
   const before = x48.ws.getCell('H' + x48.totalRowsAt.total).value.result;
-  const want = Math.round((before + 6 * 6419.4) * 118) / 100; // 6 more pieces at the net rate, +18%
+  const want = Math.round((before + 6 * 6614.4) * 118) / 100; // 6 more pieces at the net rate, +18%
   const got = +grand.replace(/"/g, '').split(',').filter(Boolean).join('').match(/[\d.]+$/)[0];
   near(got, want, 'grand total recalculated: ' + grand);
 });
@@ -663,11 +680,11 @@ await test('9c. mixed-discount formulas recalculate in LibreOffice', async () =>
   const f = path.join(OUT, 'new_nocache.xlsx'); await wb.xlsx.writeFile(f);
   convert(f, 'csv', OUT);
   const csv = fs.readFileSync(path.join(OUT, 'new_nocache.csv'), 'utf8');
-  // net 44442 + 27080 + 90000 + 30000 = 191522; gst 34473.96; grand 225995.96
+  // net 45792 + 28440 + 90000 + 30000 = 194232; gst 34961.76; grand 229193.76
   const val = lbl => (csv.split('\n').find(l => l.includes(lbl)) || '').replace(/"/g, '');
   const num = lbl => +val(lbl).split(',').filter(Boolean).pop().replace(/[^\d.]/g, '');
   const lastTotal = (csv.split('\n').filter(l => /,TOTAL,/.test(l.replace(/"/g, ''))).pop() || '').replace(/"/g, '');
-  near(+lastTotal.split(',').filter(Boolean).pop().replace(/[^\d.]/g, ''), 225995.96);
+  near(+lastTotal.split(',').filter(Boolean).pop().replace(/[^\d.]/g, ''), 229193.76);
 });
 
 console.log(results.join('\n'));

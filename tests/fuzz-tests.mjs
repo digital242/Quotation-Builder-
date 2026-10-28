@@ -50,7 +50,7 @@ function randomItem() {
     const plate = rnd() < 0.4, h = pick([30, 40]), l = 300 + Math.floor(rnd() * 2130), w = 300 + Math.floor(rnd() * 700);
     const it = { prod: 'custom', kind: 'grating', name: 'FRP Grating', l, w, h, plate, frame: 'none', load: pick([null, 1, 2]), price: null, qty: 1 + Math.floor(rnd() * 50), disc: pick([0, 10]) };
     const rate = (plate ? { 30: 11030, 40: 13000 } : { 30: 7995, 40: 9950 })[h];
-    checks++; if (TD.unitPrice(it) !== Math.round(l * w / 1e6 * rate * 100) / 100) failures.push(`grating ${l}x${w}x${h} ${plate}: ${TD.unitPrice(it)}`);
+    checks++; if (TD.unitPrice(it) !== Math.round(l * w / 1e6 * rate * 100) / 100 + (it.region === 'mumbai' ? 100 : 200)) failures.push(`grating ${l}x${w}x${h} ${plate}: ${TD.unitPrice(it)}`);
     return it;
   }
   if (rnd() < 0.06) {

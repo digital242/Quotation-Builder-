@@ -57,12 +57,12 @@ await test('UI 1: paste four lines + Enter → 4 items and correct totals', asyn
   eq(await page.locator('#sumItems .item').count(), 4);
   eq(await page.inputValue('#quick'), '');
   const tot = await page.textContent('#totals');
-  ok(tot.includes('₹2,67,020.00'), 'subtotal ' + tot); ok(tot.includes('₹48,063.60'), 'gst');
-  eq(await page.textContent('#grandVal'), '₹3,15,083.60');
+  ok(tot.includes('₹2,76,490.00'), 'subtotal ' + tot); ok(tot.includes('₹49,768.20'), 'gst');
+  eq(await page.textContent('#grandVal'), '₹3,26,258.20');
   eq(await page.textContent('#sumCount'), '4 items');
   eq(await lastToast(page), '4 items added.');
   const amts = await page.locator('#sumItems .amt').allTextContents();
-  eq(amts.join('|'), '₹49,380|₹1,38,280|₹8,400|₹70,960');
+  eq(amts.join('|'), '₹50,880|₹1,42,430|₹8,660|₹74,520');
   eq(page.errors.length, 0, page.errors.join());
   await page.screenshot({ path: path.join(OUT, 'ui-desktop.png'), fullPage: true });
   await ctx.close();
@@ -74,7 +74,7 @@ await test('UI 2-4: valid lines added, invalid lines stay with plain errors', as
   await typeLines(page, ['air water tight 750x750 c250 3 nos', 'solid top 777x777 b125 qty 1', 'recess cover 600x600 e600 qty 1']);
   await page.keyboard.press('Enter');
   eq(await page.locator('#sumItems .item').count(), 1);
-  ok((await page.textContent('#sumItems')).includes('₹83,085'));
+  ok((await page.textContent('#sumItems')).includes('₹85,590'));
   eq(await page.inputValue('#quick'), 'solid top 777x777 b125 qty 1\nrecess cover 600x600 e600 qty 1');
   const errs = await page.locator('#lineCheck li.blocked .lc-text').allTextContents();
   ok(errs[0].includes('777 × 777 is not in the Solid Top MHC price list.'), errs[0]);
@@ -95,8 +95,8 @@ await test('UI 5-7: Shift+Enter newline, gully with frame group, tank 500 kg, me
   await typeLines(page, ['tank 600 qty 3']); await page.click('#quickAdd');
   eq(await page.locator('#sumItems .item').count(), 2);
   const txt = await page.textContent('#sumItems');
-  ok(txt.includes('Water Gully Cover with frame') && txt.includes('× ₹7,300'), 'gully with frame');
-  ok(txt.includes('Ø 600 mm, 500 kg') && txt.includes('× ₹5,420'), 'tank');
+  ok(txt.includes('Water Gully Cover with frame') && txt.includes('× ₹7,520'), 'gully with frame');
+  ok(txt.includes('Ø 600 mm, 500 kg') && txt.includes('× ₹5,585'), 'tank');
   eq(await page.inputValue('#sumItems .item:nth-child(2) input[data-act=qty]'), '6');
   const M = await page.evaluate(() => window.__tdApp.model());
   eq(M.groups[0].title, '‘THERMODRAIN’ FRP WATER GULLY COVER WITH FRAME');
@@ -125,12 +125,12 @@ await test('UI picker: gully flag, frame toggle, on-request loads disabled, step
   await page.click('[data-size="s900t"]');
   eq(await page.getAttribute('[data-load="0"]', 'aria-pressed'), 'true');
   ok((await page.textContent('[data-size="s900t"]')).includes('2 covers, 1 MS frame'));
-  eq((await page.textContent('#abPrice')).startsWith('₹20,725'), true);
+  eq((await page.textContent('#abPrice')).startsWith('₹21,350'), true);
   await page.click('#abPlus'); await page.click('#abPlus');
-  eq(await page.textContent('#abAdd'), 'Add 3 to quote, ₹62,175');
+  eq(await page.textContent('#abAdd'), 'Add 3 to quote, ₹64,050');
   await page.click('#abAdd');
   eq(await page.inputValue('#abQty'), '1', 'quantity resets to 1 after adding');
-  eq(await page.textContent('#abAdd'), 'Add 1 to quote, ₹20,725');
+  eq(await page.textContent('#abAdd'), 'Add 1 to quote, ₹21,350');
   await page.click('#abAdd');
   eq(await page.locator('#sumItems .item').count(), 1);
   eq(await page.inputValue('#sumItems input[data-act=qty]'), '4', 'same item merges: 3 + 1');
@@ -170,9 +170,9 @@ await test('UI 8: download .xlsx (48% discount), filename, formulas, serial +1',
   const ws = wb.getWorksheet('Quotation');
   const labels = []; ws.eachRow((row, rn) => { const v = row.getCell(5).value; if (typeof v === 'string' && /TOTAL|Discount|GST @/.test(v)) labels.push([v, row.getCell(8).value, rn]); });
   eq(labels.map(l => l[0]).join(' | '), 'TOTAL | PLUS GST @ 18% | TOTAL', 'lines at net rate, GST on the net total');
-  eq(labels[0][1].result, 138850.4); eq(labels[2][1].result, 163843.47);
+  eq(labels[0][1].result, 143774.8); eq(labels[2][1].result, 169654.26);
   const vals = []; ws.eachRow(row => row.eachCell(c => vals.push(c.value)));
-  ok(vals.includes('NET RATE /PC (RS)') && vals.includes(6419.4), 'net rate column (12345 less 48%)');
+  ok(vals.includes('NET RATE /PC (RS)') && vals.includes(6614.4), 'net rate column (12720 less 48%)');
   eq(await page.inputValue('#f_serial'), '26');
   eq(await page.textContent('#hdrRef'), 'THERMODRAIN/QTN/TP1-BGLR/026/2026-27');
   ok((await page.locator('#toasts .toast').allTextContents()).some(t => t === 'Saved. Next quotation will be no. 026.'));
@@ -198,10 +198,10 @@ await test('UI: preview dialog, WhatsApp text, persistence, new quotation keeps 
   await page.click('#btnPreview');
   ok(await page.isVisible('#pvDlg'));
   const paper = await page.textContent('#paper');
-  ok(paper.includes('PLUS GST @ 18%') && paper.includes('3,15,083.60') && paper.includes('KIND ATTN'));
+  ok(paper.includes('PLUS GST @ 18%') && paper.includes('3,26,258.20') && paper.includes('KIND ATTN'));
   await page.click('#pvClose');
   const wa = await page.evaluate(() => TD.whatsappText(window.__tdApp.model()));
-  ok(wa.includes('*Grand total (incl. 18% GST): ₹3,15,083.60*'), wa);
+  ok(wa.includes('*Grand total (incl. 18% GST): ₹3,26,258.20*'), wa);
   ok(wa.includes('*‘THERMODRAIN’ FRP MANHOLE COVERS WITH FRAME*'));
   await page.click('#btnCopy');
   await page.waitForTimeout(150);
@@ -288,7 +288,7 @@ await test('UI: live checklist (grey while missing, green when every detail is f
   eq(await page.locator('#lineCheck li.ready').count(), 0, 'not green until qty is given');
   await page.keyboard.type(' qty 4');
   eq(await page.locator('#lineCheck li.ready').count(), 1, 'green once every detail is filled');
-  ok((await page.textContent('#lineCheck .lc-text')).includes('4 nos × ₹12,345 = ₹49,380'));
+  ok((await page.textContent('#lineCheck .lc-text')).includes('4 nos × ₹12,720 = ₹50,880'));
   // chamber needs a price; second line shows its own checklist
   await page.keyboard.press('Shift+Enter'); await page.keyboard.type('chamber 1000x1000x600 two sided B125 qty 2');
   const rows = page.locator('#lineCheck li');
@@ -322,7 +322,7 @@ await test('UI: custom chamber, MS frame with typed price, recess depth', async 
   ok(sum.includes('FRP Inspection Chamber, with MS frame') && sum.includes('1200 × 900 × 750 mm, two-sided finish, D400'), sum);
   // single solid cover: no MS frame option; without frame needs a price
   await page.click('[data-prod="solid"]'); await page.click('[data-shape="Square"]'); await page.click('[data-size="s600"]'); await page.click('[data-load="2"]');
-  eq((await page.textContent('#abPrice')).startsWith('₹12,345'), true);
+  eq((await page.textContent('#abPrice')).startsWith('₹12,720'), true);
   eq(await page.locator('#frameSeg [data-frame="ms"]').count(), 0, 'no MS frame on a single cover');
   await page.click('[data-frame="none"]');
   ok(await page.isVisible('#abManual')); ok(await page.isDisabled('#abAdd'));
@@ -348,9 +348,9 @@ await test('UI: per-item discounts, average discount, apply to all; US$ export m
   await page.fill('#sumItems .item:nth-child(1) input[data-act=disc]', '10');
   await page.fill('#sumItems .item:nth-child(2) input[data-act=disc]', '20');
   const tot = await page.textContent('#totals');
-  ok(tot.includes('Less discount, average 15.90%') && tot.includes('−₹19,130.00'), tot);
+  ok(tot.includes('Less discount, average 15.94%') && tot.includes('−₹19,992.00'), tot);
   await page.click('#f_company');
-  eq(await page.inputValue('#discount'), '15.9', 'discount box shows the average of all items');
+  eq(await page.inputValue('#discount'), '15.94', 'discount box shows the average of all items');
   await page.fill('#discount', '12'); await page.click('#discApply');
   eq(await page.inputValue('#sumItems .item:nth-child(2) input[data-act=disc]'), '12');
   ok((await page.textContent('#totals')).includes('Less discount @12%'));
@@ -371,7 +371,7 @@ await test('UI: per-item discounts, average discount, apply to all; US$ export m
   const tot2 = await page.textContent('#totals');
   ok(!tot2.includes('GST') && tot2.includes('US$'), tot2);
   eq(await page.textContent('#grandLabel'), 'Total in US$, export, no GST');
-  ok((await page.textContent('#sumItems')).includes('= US$ 139.49'));
+  ok((await page.textContent('#sumItems')).includes('= US$ 143.73'));
   const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#btnDownload')]);
   const file = path.join(OUT, 'ui-usd.xlsx'); await dl.saveAs(file);
   const wb = new ExcelJS.Workbook(); await wb.xlsx.readFile(file); const ws = wb.getWorksheet('Quotation');
@@ -454,7 +454,7 @@ await test('UI: no stale typed price, serial stays consistent, twin frame wordin
   // twin row with FRP frame: wording follows the frame
   await page.click('[data-size="s900t"]');
   eq(await page.getAttribute('[data-frame="ms"]', 'aria-pressed'), 'true', 'twin defaults to MS frame (list price)');
-  ok((await page.textContent('#abPrice')).startsWith('₹20,725'));
+  ok((await page.textContent('#abPrice')).startsWith('₹21,350'));
   await page.click('[data-frame="frp"]'); await page.fill('#abPriceIn', '24000'); await page.click('#abAdd');
   const M = await page.evaluate(() => window.__tdApp.model());
   ok(M.groups.flatMap(g => g.items).some(x => x.wording.endsWith('2 covers with single FRP frame')), 'FRP twin wording');
@@ -500,8 +500,14 @@ await test('UI: drain channel and grating from the picker', async () => {
   await page.click('[data-prod="custom"]');
   await page.click('[data-kind="channel"]');
   ok(await page.isVisible('#channelWrap')); ok(await page.isHidden('#chamberWrap')); ok(await page.isHidden('#frameWrap'), 'no frame choice for a channel');
+  // a listed size is priced from the drain channel price list (w.e.f. 05.10.2026)
+  ok(await page.isHidden('#abManual')); eq(await page.textContent('#abAdd'), 'Add 1 to quote, ₹19,035', '326 W × 300 Ht × 1000 Lt, D400');
+  await page.click('[data-chsize="128x155x1000"]'); await page.click('[data-load="3"]'); eq(await page.textContent('#abAdd'), 'Add 1 to quote, ₹9,045');
+  await page.click('[data-grate="slit"]'); ok((await page.textContent('#chRate')).includes('= ₹9,645 per piece'), await page.textContent('#chRate'));
+  await page.click('[data-grate="with"]');
+  // any other size needs a typed price
   await page.fill('#chL', '1000'); await page.fill('#chW', '300'); await page.fill('#chH', '');
-  eq(await page.textContent('#abAdd'), 'Enter L, W and depth');
+  eq(await page.textContent('#abAdd'), 'Enter W, Ht and Lt');
   await page.fill('#chH', '300'); await page.click('[data-load="4"]');
   ok(await page.isDisabled('#abAdd'), 'needs a price');
   await page.fill('#abPriceIn', '8500'); await page.fill('#abQty', '10'); await page.dispatchEvent('#abQty', 'change');
@@ -518,7 +524,7 @@ await test('UI: drain channel and grating from the picker', async () => {
   await page.fill('#abPriceIn', '6500'); await page.click('#abAdd');
   const M = await page.evaluate(() => window.__tdApp.model());
   eq(M.groups.map(g => g.title).join(' | '), '‘THERMODRAIN’ FRP DRAIN CHANNEL WITH GRATING | ‘THERMODRAIN’ FRP DRAIN CHANNEL WITHOUT GRATING | ‘THERMODRAIN’ FRP GRATINGS');
-  eq(M.groups[0].items[0].wording, '1000mm L X 300mm W X 300mm D, with FRP grating');
+  eq(M.groups[0].items[0].wording, '300mm (W) X 300mm (Ht) X 1000mm (Lt), with FRP grating');
   eq(M.groups[2].items[0].wording, '600mm W X 1200mm L x 50mm ht, open teeth');
   eq(M.totals.sub, 85000 + 6000 + 6500);
   await page.reload(); await page.waitForFunction(() => !!window.__tdApp);
@@ -533,15 +539,16 @@ await test('UI: grating priced per m² and L angle per metre from the picker', a
   await page.click('[data-prod="custom"]'); await page.click('[data-kind="grating"]');
   await page.fill('#gL', '1200'); await page.fill('#gW', '604'); await page.fill('#gT', '30');
   ok(await page.isHidden('#abManual'), 'no typed price for a listed grating');
-  ok((await page.textContent('#gRate')).includes('× ₹7,995/m² (30 mm ht rate) = ₹5,794.78 per piece'), await page.textContent('#gRate'));
-  eq(await page.textContent('#abAdd'), 'Add 1 to quote, ₹5,794.78');
+  ok((await page.textContent('#gRate')).includes('× ₹7,995/m² (30 mm ht rate) = ₹5,794.78 + ₹200 per piece (other regions) = ₹5,994.78 per piece'), await page.textContent('#gRate'));
+  eq(await page.textContent('#abAdd'), 'Add 1 to quote, ₹5,994.78');
+  await page.click('[data-region="mumbai"]'); eq(await page.textContent('#abAdd'), 'Add 1 to quote, ₹5,894.78', 'Mumbai +100'); await page.click('[data-region="other"]');
   await page.click('[data-plate="1"]');
   ok((await page.textContent('#gRate')).includes('₹11,030/m²'));
   await page.click('#abAdd');
   // 38 mm is priced at the 40 mm rate, no typing needed
   await page.click('[data-plate="0"]'); await page.fill('#gL', '1000'); await page.fill('#gW', '502'); await page.fill('#gT', '38');
   ok(await page.isHidden('#abManual'), '38 mm priced from the list');
-  ok((await page.textContent('#gRate')).includes('× ₹9,950/m² (40 mm ht rate, used for 38 mm) = ₹4,994.90 per piece'), await page.textContent('#gRate'));
+  ok((await page.textContent('#gRate')).includes('× ₹9,950/m² (40 mm ht rate, used for 38 mm) = ₹4,994.90 + ₹200 per piece (other regions) = ₹5,194.90 per piece'), await page.textContent('#gRate'));
   await page.fill('#gT', '50'); ok(await page.isVisible('#abManual'), 'above 40 mm needs a price');
   ok((await page.textContent('#frameHint')).startsWith('The price list goes up to 40 mm height'), await page.textContent('#frameHint'));
   // a typed rate per m² works out the price per piece, and follows the size
@@ -551,7 +558,7 @@ await test('UI: grating priced per m² and L angle per metre from the picker', a
   eq(await page.inputValue('#abPriceIn'), '4518', '0.502 m² × 9000'); eq(await page.textContent('#abAdd'), 'Add 1 to quote, ₹4,518');
   await page.fill('#gW', '525'); eq(await page.inputValue('#abPriceIn'), '4725', 'price follows the size');
   // one click back to a listed height
-  await page.click('[data-ht="40"]'); ok(await page.isHidden('#abManual')); eq(await page.textContent('#abAdd'), 'Add 1 to quote, ₹5,223.75');
+  await page.click('[data-ht="40"]'); ok(await page.isHidden('#abManual')); eq(await page.textContent('#abAdd'), 'Add 1 to quote, ₹5,423.75');
   await page.fill('#gL', '1200'); await page.fill('#gW', '604'); await page.click('[data-plate="1"]');
   await page.fill('#gT', '40'); await page.click('[data-plate="0"]');
   await page.click('[data-frame="ms"]'); ok(await page.isVisible('#abManual'), 'a frame needs a price');
@@ -566,7 +573,7 @@ await test('UI: grating priced per m² and L angle per metre from the picker', a
   const M = await page.evaluate(() => window.__tdApp.model());
   eq(M.groups.map(g => g.title).join(' | '), '‘THERMODRAIN’ FRP GRATINGS WITH CHEQUERED PLATE | ‘THERMODRAIN’ FRP ‘L’ ANGLE');
   eq(M.groups[1].items[0].wording, '45mm X 45mm X 4mm thk, 3000mm long'); eq(M.groups[1].items[0].load, '-');
-  eq(M.totals.sub, 7994.54 + 19200);
+  eq(M.totals.sub, 8194.54 + 19200);
   await page.reload(); await page.waitForFunction(() => !!window.__tdApp);
   eq(await page.locator('#sumItems .item').count(), 2, 'items survive a reload');
   eq(page.errors.length, 0, page.errors.join());
@@ -639,7 +646,7 @@ await test('UI 11a: 360 px wide, no horizontal scroll (empty, with items, picker
   await page.click('#sumItems details summary');
   eq(await sw(), 360, 'with items');
   ok(await page.isVisible('#mbar'), 'mobile bar visible');
-  eq(await page.textContent('#mTotal'), '₹3,15,083.60');
+  eq(await page.textContent('#mTotal'), '₹3,26,258.20');
   await page.screenshot({ path: path.join(OUT, 'ui-360.png'), fullPage: true });
   await page.click('#btnPreview'); eq(await sw(), 360, 'preview open');
   await page.screenshot({ path: path.join(OUT, 'ui-360-preview.png') });

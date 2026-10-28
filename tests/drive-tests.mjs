@@ -121,7 +121,7 @@ await test('Drive: folders by city and client, every quotation saved, register r
   const rows = brig.data.toString('utf8').trim().split(/\r\n/);
   eq(rows.length, 4, 'header + one row per product line (the 2nd quotation has 2 products)');
   eq(rows[0], 'Date,Quotation ref,Client name,City,Product,Size,Load class,Qty,Discount %,Net rate /pc,Value (excl. GST),Quote value (incl. GST),Currency');
-  ok(rows[1].includes('/001/') && rows[1].includes('BRIGADE INFRA,BENGALURU') && rows[1].includes('600mm X 600mm,B 125,4,0,12345,49380,58268.4,INR'), rows[1]);
+  ok(rows[1].includes('/001/') && rows[1].includes('BRIGADE INFRA,BENGALURU') && rows[1].includes('600mm X 600mm,B 125,4,0,12720,50880,60038.4,INR'), rows[1]);
   ok(rows[2].includes('/002/') && rows[2].includes('600mm X 600mm'), rows[2]);
   ok(rows[3].includes('/002/') && rows[3].includes('5 Ton'), rows[3]);
   eq(brig.updates, 1, 'second quotation updated the same sheet'); eq(brig.exports, 1);
