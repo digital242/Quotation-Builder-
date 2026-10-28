@@ -421,6 +421,7 @@ dialog.pv::backdrop{background:rgba(27,42,74,.55)}
           <button type="button" data-kind="multi" aria-pressed="false">Multi-cover manhole cover</button>
           <button type="button" data-kind="channel" aria-pressed="false">Drain channel</button>
           <button type="button" data-kind="grating" aria-pressed="false">Grating</button>
+          <button type="button" data-kind="angle" aria-pressed="false">L angle</button>
         </div>
        <div id="chamberWrap">
         <span class="field-label">Chamber size and finish</span>
@@ -465,9 +466,25 @@ dialog.pv::backdrop{background:rgba(27,42,74,.55)}
           <div class="fld full"><label for="gName">Product name (prints on the quotation)</label><input id="gName" data-g="name" placeholder="FRP Grating"></div>
           <div class="fld"><label for="gL">Length, mm</label><input id="gL" data-g="l" type="number" min="1" inputmode="numeric"></div>
           <div class="fld"><label for="gW">Width, mm</label><input id="gW" data-g="w" type="number" min="1" inputmode="numeric"></div>
-          <div class="fld"><label for="gT">Thickness, mm</label><input id="gT" data-g="h" type="number" min="1" inputmode="numeric" placeholder="Optional"></div>
+          <div class="fld"><label for="gT">Height, mm</label><input id="gT" data-g="h" type="number" min="1" inputmode="numeric" placeholder="30 or 40"></div>
         </div>
+        <span class="field-label" id="lblPlate">Grating type</span>
+        <div class="seg" id="plateSeg" role="group" aria-labelledby="lblPlate">
+          <button type="button" data-plate="0" aria-pressed="true">Grating</button>
+          <button type="button" data-plate="1" aria-pressed="false">With chequered plate (one side closed)</button>
+        </div>
+        <p class="hint rate-hint" id="gRate"></p>
         <p class="teeth" id="gTeeth" role="status" aria-live="polite"></p>
+       </div>
+       <div id="angleWrap" hidden>
+        <span class="field-label">‘L’ angle</span>
+        <div class="form-grid c-grid">
+          <div class="fld full"><label for="aName">Product name (prints on the quotation)</label><input id="aName" data-a="name" placeholder="FRP L Angle"></div>
+        </div>
+        <span class="field-label" id="lblSec">Size</span>
+        <div class="seg" id="secSeg" role="group" aria-labelledby="lblSec"></div>
+        <div class="form-grid c-grid"><div class="fld"><label for="aL">Length per piece, mm</label><input id="aL" data-a="l" type="number" min="1" inputmode="numeric"></div></div>
+        <p class="hint rate-hint" id="aRate"></p>
        </div>
       </div>
 
@@ -485,8 +502,10 @@ dialog.pv::backdrop{background:rgba(27,42,74,.55)}
         <p class="hint frame-hint" id="frameHint"></p>
       </div>
 
+      <div id="loadWrap">
       <span class="field-label" id="lblLoad">Load class</span>
       <div class="load-grid" id="loadGrid" role="group" aria-labelledby="lblLoad"></div>
+      </div>
 
       <div class="addbar" id="addBar">
         <svg class="draw" id="coverDraw" viewBox="0 0 96 96" aria-hidden="true"></svg>
@@ -930,8 +949,8 @@ function normFrame(prod,frame,id){
   return listFrame({prod,id});
 }
 /* True when the unit price is typed in by hand (chambers, non-listed frames). */
-function isManual(it){ return it.prod==='custom' || (it.prod!=='gully' && normFrame(it.prod,it.frame,it.id)!==listFrame(it)); }
-function listPrice(it){ return it.prod==='custom' ? null : priceOf(it.prod,it.id,it.prod==='tank'?0:it.load,normFrame(it.prod,it.frame,it.id)); }
+function isManual(it){ return it.prod==='custom' ? customListPrice(it)===null : (it.prod!=='gully' && normFrame(it.prod,it.frame,it.id)!==listFrame(it)); }
+function listPrice(it){ return it.prod==='custom' ? customListPrice(it) : priceOf(it.prod,it.id,it.prod==='tank'?0:it.load,normFrame(it.prod,it.frame,it.id)); }
 function unitPrice(it){
   if(isManual(it)){ const p=parseFloat(it.price); return p>0 ? Math.round(p*100)/100 : null; }
   return listPrice(it);
@@ -941,8 +960,33 @@ function depthOf(it){ const d=parseInt(it.depth,10); return it.prod==='recess' &
 function finishText(it){ return it.finish==='double' ? 'two-sided finish' : 'single-sided finish'; }
 /* Custom products: kind 'chamber' (L x W x H, finish) or 'multi' (multi-cover manhole cover: L x W opening, number of covers). */
 /* Also 'channel' (drain channel: L x W x D, with or without grating) and 'grating' (L x W, optional thickness). */
-const CUSTOM_KINDS=['chamber','multi','channel','grating'];
-const CUSTOM_DEFAULT_NAME={chamber:'FRP Chamber',multi:'FRP/GRP Multiple Manhole Cover',channel:'FRP Drain Channel',grating:'FRP Grating'};
+const CUSTOM_KINDS=['chamber','multi','channel','grating','angle'];
+const CUSTOM_DEFAULT_NAME={chamber:'FRP Chamber',multi:'FRP/GRP Multiple Manhole Cover',channel:'FRP Drain Channel',grating:'FRP Grating',angle:'FRP L Angle'};
+/* Gratings & 'L' angle, from the price list w.e.f. 10.08.2026 (excl. GST). Never round or change these. */
+const GRATING_RATE_M2={30:7995,40:9950};          // THERMODRAIN gratings, per m², by height (ht) in mm
+const GRATING_CHQ_RATE_M2={30:11030,40:13000};    // gratings with chequered plate (one side closed), per m²
+const L_ANGLE_RATE_M={'35x35x4':520,'45x45x4':640}; // 'L' angle, per running metre
+const L_ANGLE_SECTIONS=Object.keys(L_ANGLE_RATE_M);
+/* Per-m² or per-metre rate that applies to a grating or L angle, or null when the price list has none
+   (another height, a frame on the grating, or an L angle section that is not listed). */
+function customRate(it){
+  const k=kindOf(it);
+  if(k==='grating'){ if(normFrame('custom',it.frame)!=='none') return null; return (it.plate?GRATING_CHQ_RATE_M2:GRATING_RATE_M2)[thickOf(it)]||null; }
+  if(k==='angle') return L_ANGLE_RATE_M[it.sec]||null;
+  return null;
+}
+function customQtyBasis(it){ // m² per piece for a grating, metres per piece for an L angle
+  const k=kindOf(it);
+  if(k==='grating'){ const l=+it.l, w=+it.w; return l>0&&w>0 ? l*w/1e6 : null; }
+  if(k==='angle'){ const l=+it.l; return l>0 ? l/1000 : null; }
+  return null;
+}
+function customListPrice(it){
+  if(it.prod!=='custom') return null;
+  const r=customRate(it), q=customQtyBasis(it);
+  return r && q ? round2(q*r) : null;
+}
+function angleSecText(sec){ const [a,b,t]=String(sec||'').split('x'); return a&&b&&t ? a+'mm X '+b+'mm X '+t+'mm thk' : String(sec||''); }
 function kindOf(it){ return it.prod!=='custom' ? null : CUSTOM_KINDS.includes(it.kind) ? it.kind : 'chamber'; }
 function isMulti(it){ return kindOf(it)==='multi'; }
 function isChamber(it){ return kindOf(it)==='chamber'; }
@@ -983,25 +1027,27 @@ function isLoadIdx(v){ return v!==null && v!==undefined && v!=='' && +v>=0 && +v
 function customLoadIdx(it){ return isLoadIdx(it.load) ? +it.load : null; }
 function itemKey(it){
   if(isMulti(it)) return ['multi',customName(it).toUpperCase(),normFrame('custom',it.frame),+it.l,+it.w,coversOf(it),customLoadIdx(it),unitPrice(it)].join('|');
-  if(it.prod==='custom') return ['custom',kindOf(it),customName(it).toUpperCase(),normFrame('custom',it.frame),+it.l,+it.w,+it.h||0,isChamber(it)?(it.finish==='double'?'d':'s'):kindOf(it)==='channel'?(it.grate==='without'?'n':'g'):'',customLoadIdx(it),String(it.loadText||'').trim().toUpperCase(),unitPrice(it)].join('|');
+  if(it.prod==='custom') return ['custom',kindOf(it),customName(it).toUpperCase(),normFrame('custom',it.frame),+it.l,+it.w||0,+it.h||0,String(it.sec||''),it.plate?'chq':'',isChamber(it)?(it.finish==='double'?'d':'s'):kindOf(it)==='channel'?(it.grate==='without'?'n':'g'):'',customLoadIdx(it),String(it.loadText||'').trim().toUpperCase(),unitPrice(it)].join('|');
   return [it.prod, normFrame(it.prod,it.frame,it.id), it.id, it.prod==='tank'?0:it.load, depthOf(it)||'', isManual(it)?unitPrice(it):''].join('|');
 }
 function groupKey(it){
   if(kindOf(it)==='channel') return 'custom|'+customName(it).toUpperCase()+'|'+(it.grate==='without'?'nograte':'grate')+'|channel';
-  if(kindOf(it)==='grating') return 'custom|'+customName(it).toUpperCase()+'|'+normFrame('custom',it.frame)+'|grating';
+  if(kindOf(it)==='grating') return 'custom|'+customName(it).toUpperCase()+'|'+normFrame('custom',it.frame)+'|grating|'+(it.plate?'chq':'');
+  if(kindOf(it)==='angle') return 'custom|'+customName(it).toUpperCase()+'|none|angle';
   if(it.prod==='custom') return 'custom|'+customName(it).toUpperCase()+'|'+normFrame('custom',it.frame)+'|'+kindOf(it);
   return it.prod+'|'+normFrame(it.prod,it.frame,it.id);
 }
 function groupTitle(key){
-  const [prod,a,b,kind]=key.split('|');
+  const [prod,a,b,kind,opt]=key.split('|');
+  if(prod==='custom' && kind==='angle') return '‘THERMODRAIN’ '+a.replace(/\bL ANGLE\b/,'‘L’ ANGLE');
   if(prod==='gully') return GROUP_TITLE['gully|'+a];
   if(prod==='custom' && kind==='channel') return '‘THERMODRAIN’ '+a+(b==='grate' ? (/GRAT/.test(a)?'':' WITH GRATING') : (/GRAT/.test(a)?'':' WITHOUT GRATING'));
-  if(prod==='custom' && kind==='grating') return '‘THERMODRAIN’ '+a.replace(/GRATING$/,'GRATINGS')+(b==='none'?'':' '+FRAME_TITLE[b]);
+  if(prod==='custom' && kind==='grating') return '‘THERMODRAIN’ '+a.replace(/GRATING$/,'GRATINGS')+(opt==='chq'?' WITH CHEQUERED PLATE':'')+(b==='none'?'':' '+FRAME_TITLE[b]);
   if(prod==='custom') return '‘THERMODRAIN’ '+a+' '+FRAME_TITLE[b];
   return GROUP_TITLE[prod].replace(' WITH FRAME',' '+FRAME_TITLE[a]);
 }
 /* Plain (not bold) text after the bold heading, as in the company format. */
-function groupTitleTail(key){ return key.split('|')[3]==='grating' ? ' (DIMENSIONAL TOLERANCE IS ± 3mm)' : ''; }
+function groupTitleTail(key){ const k=key.split('|'); return k[3]==='grating' ? (k[4]==='chq'?' (one side closed)':'')+' (DIMENSIONAL TOLERANCE IS ± 3mm)' : ''; }
 function groupNote(key){ const [prod,a,,kind]=key.split('|'); if(prod==='custom') return kind==='multi' ? NOTE_MHC : kind==='grating' ? NOTE_GRATING : null; return prod==='gully' ? GROUP_NOTE['gully|'+a] : (GROUP_NOTE[prod]||null); }
 function flagFor(it){
   if(it.prod==='tank'||it.prod==='custom'||isManual(it)) return null;
@@ -1028,7 +1074,8 @@ function sizeText(prod,id,load){
 }
 function itemSizeText(it){
   if(isMulti(it)) return (+it.l||0)+' × '+(+it.w||0)+' mm, '+coversOf(it)+' covers';
-  if(kindOf(it)==='grating') return (+it.l||0)+' × '+(+it.w||0)+' mm'+(thickOf(it)?', '+thickOf(it)+' mm thick':'')+', '+teethOf(it)+' teeth';
+  if(kindOf(it)==='grating') return (+it.l||0)+' × '+(+it.w||0)+' mm'+(thickOf(it)?', '+thickOf(it)+' mm ht':'')+', '+teethOf(it)+' teeth'+(it.plate?', chequered plate':'');
+  if(kindOf(it)==='angle') return String(it.sec||'').split('x').join(' × ')+' mm, '+(+it.l||0)+' mm long';
   if(kindOf(it)==='channel') return (+it.l||0)+' × '+(+it.w||0)+' × '+(+it.h||0)+' mm (L × W × D)';
   if(it.prod==='custom') return (+it.l||0)+' × '+(+it.w||0)+' × '+(+it.h||0)+' mm';
   return sizeText(it.prod,it.id,it.load)+(it.prod==='gully'?' out to out':'');
@@ -1036,15 +1083,19 @@ function itemSizeText(it){
 function loadText(prod,load){ return prod==='tank' ? '500 kg' : LOAD_CODE[load]; }
 function loadPrint(prod,load){ return prod==='tank' ? '500 KG' : LOAD_PRINT[load]; }
 function itemLoadText(it){
+  if(kindOf(it)==='angle') return 'No load class';
   if(it.prod==='custom'){ const i=customLoadIdx(it); return i!==null ? LOAD_CODE[i] : (String(it.loadText||'').trim()||'Load not stated'); }
   return loadText(it.prod,it.load);
 }
 function itemLoadPrint(it){
+  if(kindOf(it)==='angle') return '-';
   if(it.prod==='custom'){ const i=customLoadIdx(it); return i!==null ? LOAD_PRINT[i]+(kindOf(it)==='grating'&&i<=1?' UDL':'') : (String(it.loadText||'').trim().toUpperCase()||'-'); }
   return loadPrint(it.prod,it.load);
 }
 function productLabel(it){
   if(kindOf(it)==='channel') return customName(it)+', '+(it.grate==='without'?'without grating':'with grating');
+  if(kindOf(it)==='angle') return customName(it);
+  if(kindOf(it)==='grating' && it.plate) return customName(it)+' with chequered plate, '+lcFirst(FRAME_LABEL[normFrame('custom',it.frame)]);
   if(it.prod==='custom') return customName(it)+', '+lcFirst(FRAME_LABEL[normFrame('custom',it.frame)]);
   const fr=normFrame(it.prod,it.frame,it.id);
   if(it.prod==='gully') return DATA.gully.name+(fr==='with'?' with frame':' without frame');
@@ -1053,7 +1104,8 @@ function productLabel(it){
 /* "600 × 600 mm, B125, 4-wheeler" */
 function specText(it){
   const parts=[itemSizeText(it)];
-  if(it.prod==='custom'){ if(isChamber(it)) parts.push(finishText(it)); const i=customLoadIdx(it); parts.push(i!==null ? LOAD_CODE[i]+', '+LOADS[i].name : itemLoadText(it)); }
+  if(kindOf(it)==='angle'){ const r=customRate(it); if(r) parts.push('₹'+r+' per metre'); }
+  else if(it.prod==='custom'){ if(isChamber(it)) parts.push(finishText(it)); const i=customLoadIdx(it); parts.push(i!==null ? LOAD_CODE[i]+', '+LOADS[i].name : itemLoadText(it)); }
   else if(it.prod==='tank') parts.push('500 kg');
   else parts.push(LOAD_CODE[it.load], LOADS[it.load].name);
   const d=depthOf(it); if(d) parts.push('recess depth '+d+' mm');
@@ -1065,7 +1117,8 @@ function defaultWording(it){
   // Company format: "450mm X 450mm", "600mm Dia", gratings "366mm W X 1001mm L x 40mm ht"
   if(isMulti(it)) return (+it.l||0)+'mm X '+(+it.w||0)+'mm, '+multiFrameText(normFrame('custom',it.frame),coversOf(it));
   if(kindOf(it)==='channel') return (+it.l||0)+'mm L X '+(+it.w||0)+'mm W X '+(+it.h||0)+'mm D, '+grateText(it);
-  if(kindOf(it)==='grating') return (+it.w||0)+'mm W X '+(+it.l||0)+'mm L'+(thickOf(it)?' x '+thickOf(it)+'mm ht':'')+', '+teethOf(it)+' teeth';
+  if(kindOf(it)==='grating') return (+it.w||0)+'mm W X '+(+it.l||0)+'mm L'+(thickOf(it)?' x '+thickOf(it)+'mm ht':'')+', '+teethOf(it)+' teeth'+(it.plate?', with chequered plate (one side closed)':'');
+  if(kindOf(it)==='angle') return angleSecText(it.sec)+', '+(+it.l||0)+'mm long';
   if(it.prod==='custom') return (+it.l||0)+'mm L X '+(+it.w||0)+'mm W X '+(+it.h||0)+'mm H, '+finishText(it);
   const f=findRow(it.prod,it.id); if(!f) return '';
   // a gully cover without frame is sized out to out; with a frame it is the frame's clear opening like other covers
@@ -1126,12 +1179,14 @@ function refNo(f){
 const MULTI_RE=/\bmulti(?:ple)?\s*-?\s*(?:manhole\s*|mh\s*)?covers?\b|\bmulti\s*-?\s*cover/;
 const CHANNEL_RE=/\bchannels?\b|\btrench\s*drains?\b/;
 const GRATING_RE=/\bgratings?\b/;
+const ANGLE_RE=/\bl\s*-?\s*['‘’]?\s*angles?\b|\bangles?\b/;
 const PRODUCT_RES=[
   ['custom', MULTI_RE],
   ['custom', /chamb[ea]r/],
   ['custom', CHANNEL_RE],
   ['gully', /gulle?y|water\s*gul|grating\s*cover/],
   ['custom', GRATING_RE],
+  ['custom', ANGLE_RE],
   ['fuel', /\bfuel|petrol|diesel|\bcic\b|cover\s*-?\s*in\s*-?\s*cover/],
   ['aw', /\bair\b|airtight|water\s*-?\s*tight|\ba\s*&\s*w\b|\ba\s*\/\s*w\b/],
   ['recess', /recess/],
@@ -1187,7 +1242,7 @@ function parseLine(raw){
   // 1. Product
   let prod=null;
   for(const [k,re] of PRODUCT_RES){ if(re.test(s)){ prod=k; break; } }
-  if(!prod) return fail('Name the product: solid top, recess, gully, air & water tight, fuel station, hinged, tank, chamber, multiple cover, drain channel or grating.');
+  if(!prod) return fail('Name the product: solid top, recess, gully, air & water tight, fuel station, hinged, tank, chamber, multiple cover, drain channel, grating or L angle.');
   const ck = customKindOf(prod,s);
   const multi = ck==='multi';
   let grate=null;
@@ -1221,13 +1276,23 @@ function parseLine(raw){
   // 4. Recess depth / chamber finish
   let depth=null, finish=null;
   if(prod==='recess' && ((m=take(/\bdepth\s*[:=]?\s*(\d{2,3})\s*(?:mm)?/)) || (m=take(/(?<![\d.])(\d{2,3})\s*(?:mm)?\s*(?:deep|depth)\b/)))) depth=+m[1];
-  if(prod==='custom'){
+  if(ck==='chamber'){
     if(take(/\b(?:two|2|double|both)\s*-?\s*(?:sided?|side)(?:\s*finish)?\b/)) finish='double';
     else if(take(/\b(?:single|one|1)\s*-?\s*(?:sided?|side)(?:\s*finish)?\b/)) finish='single';
   }
 
+  // L angle: section like 35x35x4 (4 mm thk when not given) and the length of each piece
+  let sec=null, alen=null;
+  if(ck==='angle'){
+    if((m=take(/(?<![\d.])(\d{2,3})\s*(?:mm)?\s*x\s*(\d{2,3})(?:\s*(?:mm)?\s*x\s*(\d{1,2}(?:\.\d)?))?\s*(?:mm)?\s*(?:thk|thick(?:ness)?)?/))) sec=m[1]+'x'+m[2]+'x'+(m[3]||'4');
+    if((m=take(/(?<![\d.])(\d+(?:\.\d+)?)\s*(mm|mtrs?|meters?|metres?|m)?\s*(?:long|length|lg)\b/)) || (m=take(/\b(?:length|long|lg|len)\.?\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(mm|mtrs?|meters?|metres?|m)?\b/)))
+      alen = (m[2] && m[2]!=='mm') || (!m[2] && +m[1]<50) ? Math.round(+m[1]*1000) : Math.round(+m[1]);
+  }
+  let plate=false;
+  if(ck==='grating' && take(/\b(?:with\s*)?(?:chequ?ered|checkered|chequer|checker)\s*-?\s*(?:plate|top)?\b|\bone\s*side\s*closed\b/)){ plate=true; while(take(/\bone\s*side\s*closed\b|\bchequ?ered\s*plate\b/)); }
+
   let thick=null;
-  if(ck==='grating' && ((m=take(/\bthick(?:ness)?\s*[:=]?\s*(\d{1,3})\s*(?:mm)?/)) || (m=take(/(?<!x\s?)(?<![\d.])(\d{1,3})\s*mm\s*(?:thick(?:ness)?|thk)\b/)) || (m=take(/(?<!x\s?)(?<![\d.])(\d{1,3})\s*(?:thick|thk)\b/)))) thick=+m[1];
+  if(ck==='grating' && ((m=take(/\b(?:thick(?:ness)?|ht|height)\s*[:=]?\s*(\d{1,3})\s*(?:mm)?/)) || (m=take(/(?<!x\s?)(?<![\d.])(\d{1,3})\s*mm\s*(?:ht|height)\b/)) || (m=take(/(?<!x\s?)(?<![\d.])(\d{1,3})\s*mm\s*(?:thick(?:ness)?|thk)\b/)) || (m=take(/(?<!x\s?)(?<![\d.])(\d{1,3})\s*(?:thick|thk)\b/)))) thick=+m[1];
 
   // 5. Quantity (explicit)
   let qty=null;
@@ -1244,7 +1309,8 @@ function parseLine(raw){
   if(prod!=='custom' && /(?<![\d.])\d{2,5}\s*(?:mm)?\s*x\s*\d{2,5}\s*(?:mm)?\s*x\s*\d{2,5}/.test(s))
     return fail('Three sizes were given. Use length x width for a cover, or write "chamber" or "drain channel" for length x width x height.');
   let size=null, dims3=null;
-  if(prod==='custom' && !multi && (m=take(/(?<![\d.])(\d{2,5})\s*(?:mm)?\s*x\s*(\d{2,5})\s*(?:mm)?\s*x\s*(\d{2,5})(?![\d.])\s*(?:mm)?/))) dims3=[+m[1],+m[2],+m[3]];
+  if(ck==='angle'){ /* section and length were read above */ }
+  else if(prod==='custom' && !multi && (m=take(/(?<![\d.])(\d{2,5})\s*(?:mm)?\s*x\s*(\d{2,5})\s*(?:mm)?\s*x\s*(\d{2,5})(?![\d.])\s*(?:mm)?/))) dims3=[+m[1],+m[2],+m[3]];
   else if(ck==='grating' && (m=take(/(?<![\d.])(\d{2,4})\s*(?:mm)?\s*x\s*(\d{2,4})(?![\d.])\s*(?:mm)?/))) size={a:+m[1],b:+m[2]}; // gratings come as narrow as 48 mm
   else if((m=take(/(?<![\d.])(\d{3,4})\s*(?:mm)?\s*x\s*(\d{3,4})(?![\d.])\s*(?:mm)?/))) size={a:+m[1],b:+m[2]};
   else if((m=take(/(?:(?:dia|ø|round)\.?\s*)?(?<![\d.])(\d{3,4})(?![\d.])\s*(?:mm)?\s*(?:diameter|dia\.?|ø|round)?/))) size={n:+m[1]};
@@ -1253,6 +1319,14 @@ function parseLine(raw){
   if(qty===null){ m=s.match(/(?<!x\s*)(?<![\d.])(\d{1,4})(?![\d.])(?!\s*x\s*\d)/); qty = m ? +m[1] : 1; }
   if(!(qty>=1)) return fail('Quantity must be at least 1.');
 
+  if(ck==='angle'){
+    if(!sec) return fail('Add the L angle size, for example 35x35x4 or 45x45x4.');
+    if(!(alen>0)) return fail('Add the length of each piece, for example 3000 mm long.');
+    const item={prod,kind:'angle',name:'FRP L Angle',sec,l:alen,frame:'none',load:null,loadText:'',price,qty,disc};
+    const up=unitPrice(item);
+    if(up===null) return fail(sec.split('x').join(' × ')+' L angle is not in the price list (35x35x4 or 45x45x4). Add the price per piece, for example price 900.');
+    return {ok:true,text,item,price:up,amount:up*qty};
+  }
   if(multi){
     const d2 = dims3 ? null : size && size.a ? [size.a,size.b] : null;
     if(!d2) return fail('Add the multi-cover size as length x width in mm, for example 1800x900.');
@@ -1272,9 +1346,11 @@ function parseLine(raw){
     const d = dims3 ? dims3 : size && size.a ? [size.a,size.b,thick] : null;
     if(!d) return fail('Add the grating size as length x width in mm, for example 1200x604 (add the thickness like 30 mm thick).');
     if(d[2]!==null && !(d[2]>=5 && d[2]<=300)) return fail('Grating thickness looks wrong. Write it like 38 mm thick.');
-    if(!(price>0)) return fail('Add the grating price per piece, for example price 6500.');
-    const item={prod,kind:'grating',name:'FRP Grating',l:d[0],w:d[1],h:d[2]||null,frame:frame||'none',load,loadText:'',price,qty,disc};
-    return {ok:true,text,item,price,amount:price*qty};
+    const item={prod,kind:'grating',name:'FRP Grating',l:d[0],w:d[1],h:d[2]||null,plate,frame:frame||'none',load,loadText:'',price,qty,disc};
+    const up=unitPrice(item);
+    if(up===null) return fail(d[2]===null ? 'Add the grating height, 30 mm or 40 mm (priced per m²), or add the price per piece, for example price 6500.'
+      : 'The price list has gratings in 30 mm and 40 mm height without frame only. Add the price per piece, for example price 6500.');
+    return {ok:true,text,item,price:up,amount:up*qty};
   }
   if(prod==='custom'){
     if(!dims3) return fail('Add the chamber size as length x width x height in mm, for example 1000x1000x600.');
@@ -1335,6 +1411,7 @@ function customKindOf(prod,s){
   if(/chamb[ea]r/.test(s)) return 'chamber';
   if(CHANNEL_RE.test(s)) return 'channel';
   if(GRATING_RE.test(s)) return 'grating';
+  if(ANGLE_RE.test(s)) return 'angle';
   return 'chamber';
 }
 const FULL_NAME={
@@ -1348,7 +1425,8 @@ const FULL_NAME={
   chamber:[/chamb[ea]r/,'chamber'],
   multi:[MULTI_RE,'multiple manhole cover'],
   channel:[/\b(?:drain(?:age)?|trench|storm\s*-?\s*water|surface)\s*-?\s*channels?\b|\bchannel\s*drains?\b|\btrench\s*drains?\b/,'drain channel'],
-  grating:[GRATING_RE,'FRP grating']
+  grating:[GRATING_RE,'FRP grating'],
+  angle:[/\bl\s*-?\s*['‘’]?\s*angles?\b/,'L angle']
 };
 function checkLine(raw){
   const text=String(raw||'').trim();
@@ -1358,21 +1436,24 @@ function checkLine(raw){
   const ck = customKindOf(prod,s);
   const multi = ck==='multi';
   const chamber = ck==='chamber' || ck==='channel'; // both need L x W x H
-  const grating = ck==='grating';
+  const grating = ck==='grating', angle = ck==='angle';
   const hasPrice=/(?:\bprice|\brate|\brs\.?|₹|\binr|@)\s*[:=]?\s*\d/.test(s);
   const hasQty=/\b(?:qty|qnty|qnt|quantity)\b\.?\s*[:=\-]?\s*\d|(?<![\d.])\d{1,5}\s*(?:nos|pcs|pieces|units)\b|\b(?:nos|no)\b\.?\s*[:=\-]?\s*\d/.test(s);
   const hasLoad = prod==='tank' || LOAD_RES.some(([,re])=>re.test(s));
   const hasSize = chamber ? /(?<![\d.])\d{2,5}\s*(?:mm)?\s*x\s*\d{2,5}\s*(?:mm)?\s*x\s*\d{2,5}/.test(s)
     : grating ? /(?<![\d.])\d{2,4}\s*(?:mm)?\s*x\s*\d{2,4}/.test(s)
+    : angle ? /(?<![\d.])\d{2,3}\s*(?:mm)?\s*x\s*\d{2,3}/.test(s)
     : multi ? /(?<![\d.])\d{3,4}\s*(?:mm)?\s*x\s*\d{3,4}/.test(s)
     : /(?<![\d.])\d{3,4}(?![\d.])/.test(s.replace(/\b(?:qty|qnty|qnt|quantity|nos?|pcs)\b\.?\s*[:=\-]?\s*\d+/g,' ').replace(/\d+\s*(?:nos|pcs|pieces|units)\b/g,' ').replace(/(?:\bprice|\brate|\brs\.?|₹|\binr|@)\s*[:=]?\s*[\d,]+/g,' ').replace(/\b[bcde]\s*-?\s*\d{3}\b/g,' '));
   const r=parseLine(text);
   // a typed price is needed for custom items and for frames without a list price
-  const needPrice = prod==='custom' || (r.ok && isManual(r.item)) || (!r.ok && /no list price/.test(r.error));
+  const needPrice = prod==='custom' ? (r.ok ? isManual(r.item) : !(grating||angle) || /Add the price per piece/.test(r.error))
+    : (r.ok && isManual(r.item)) || (!r.ok && /no list price/.test(r.error));
   const nameKey = ck || prod;
   const fullName = !!(nameKey && FULL_NAME[nameKey][0].test(s));
   const parts=[{key:'product',label:'Product',done:fullName},{key:'size',label:ck==='channel'?'Size L × W × D':chamber?'Size L × W × H':(multi||grating)?'Size L × W':'Size',done:hasSize}];
-  if(!chamber && !grating) parts.push({key:'load',label:'Load class',done:hasLoad});
+  if(angle) parts.push({key:'len',label:'Length',done:/\b(?:length|long|lg|len)\b/.test(s)});
+  if(!chamber && !grating && !angle) parts.push({key:'load',label:'Load class',done:hasLoad});
   parts.push({key:'qty',label:'Qty',done:hasQty});
   if(needPrice) parts.push({key:'price',label:'Price',done:hasPrice});
   const allDone=parts.every(p=>p.done);
@@ -1400,7 +1481,7 @@ function modeOf(x){ if(x===true||x==='gst') return 'gst'; if(x==='usd') return '
 function itemDisc(it,dflt){ return it.disc===undefined||it.disc===null||it.disc==='' ? pctOf(dflt) : pctOf(it.disc); }
 function linePrice(it,mode,rate){ const p=unitPrice(it)||0; return mode==='usd' ? (rate>0 ? round2(p/rate) : 0) : p; }
 /* Net rate per piece after the item's discount, to the paisa / cent. Amounts are net rate x qty. */
-function netPrice(price,pct){ return pct>0 ? round2(price*(100-pct)/100) : price; }
+function netPrice(price,pct){ if(!(pct>0)) return price; const paise=Math.round(price*100); return Math.round(paise*(100-pct)/100)/100; } // half a paisa rounds up
 function totals(items,a,b,rate){
   const two=b===undefined, dAll=two?0:a, mode=modeOf(two?a:b);
   let sub=0, base=0; const pcts=[];
@@ -1712,7 +1793,7 @@ function buildClientDataWorkbook(ExcelJS,rows){
 }
 
 return {CLIENT_DATA_HEAD,clientDataRows,parseCsv,csvLine,mergeClientRows,buildClientDataWorkbook,LOADS,DATA,FLAGS,PRODUCTS,SHAPES,LOAD_CODE,LOAD_PRINT,PRINT_NAME,GROUP_TITLE,GROUP_NOTE,NOTE_MHC,NOTE_GRATING,GULLY_OTO,DEFAULT_FIELDS,CUSTOMER_KEYS,COLW,NUMFMT,
-  netPrice,findRow,checkLine,enquiryLines,isCic,FUEL_INFO,isMulti,kindOf,isChamber,thickOf,teethInfo,teethOf,CLOSE_TEETH_SIZES,grateText,CUSTOM_KINDS,CUSTOM_DEFAULT_NAME,coversOf,allowedFrames,serialOf,lcFirst,isLoadIdx,isTwin,isTwinItem,priceOf,normFrame,listFrame,isManual,listPrice,unitPrice,pctOf,depthOf,itemDisc,itemSizeText,itemLoadText,itemLoadPrint,finishText,customName,groupTitle,FRAME_LABEL,usdRateOf,fmtUS,usd2,pctLabel,modeOf,linePrice,money,moneyShort,NUMFMT_USD,itemKey,groupKey,flagFor,gullyOTO,inchesOf,sizeText,loadText,loadPrint,productLabel,specText,
+  netPrice,findRow,checkLine,enquiryLines,isCic,FUEL_INFO,isMulti,kindOf,isChamber,thickOf,groupTitleTail,groupNote,customRate,customQtyBasis,customListPrice,GRATING_RATE_M2,GRATING_CHQ_RATE_M2,L_ANGLE_RATE_M,L_ANGLE_SECTIONS,angleSecText,teethInfo,teethOf,CLOSE_TEETH_SIZES,grateText,CUSTOM_KINDS,CUSTOM_DEFAULT_NAME,coversOf,allowedFrames,serialOf,lcFirst,isLoadIdx,isTwin,isTwinItem,priceOf,normFrame,listFrame,isManual,listPrice,unitPrice,pctOf,depthOf,itemDisc,itemSizeText,itemLoadText,itemLoadPrint,finishText,customName,groupTitle,FRAME_LABEL,usdRateOf,fmtUS,usd2,pctLabel,modeOf,linePrice,money,moneyShort,NUMFMT_USD,itemKey,groupKey,flagFor,gullyOTO,inchesOf,sizeText,loadText,loadPrint,productLabel,specText,
   defaultWording,wordingOf,TRANSPORT_MODES,PAY_PRESETS,transportText,paySlabsOf,slabTotal,slabProblem,paymentLines,fmtIN,rupees,rupees2,round2,ddmmyyyy,fyOf,pad3,todayISO,refNo,parseLine,describeParsed,matchSize,
   totals,autoSubject,introText,buildModel,whatsappText,wrapLines,rowHeightFor,buildWorkbook,stripB64,
   logos:{tp:LOGO_TP,td:LOGO_TD}};
@@ -1748,7 +1829,7 @@ const ICON={
   custom:svgI('<path d="M6 14 L14 6 H34 V26 L26 34 H6 Z"/><path d="M6 14 H26 V34 M26 14 L34 6"/><path d="M10 20h12M10 25h12" stroke-dasharray="2 2"/>'),
   empty:svgI('<rect x="9" y="7" width="22" height="28" rx="2"/><path d="M15 7V5h10v2"/><path d="M14 16h12M14 21h12M14 26h7"/>')
 };
-const PROD_DESC={solid:'Manhole cover with frame',hinged:'Opens 180° on FRP hinge',tank:'500 kg, hinge + locking',aw:'Gasketed cover with frame',fuel:'Petrol pump A&W covers, C250 / D400',recess:'Tray top for tiles or paving',gully:'Slotted, with or without frame',custom:'Chambers, multi-covers, drain channels, gratings: your size and price'};
+const PROD_DESC={solid:'Manhole cover with frame',hinged:'Opens 180° on FRP hinge',tank:'500 kg, hinge + locking',aw:'Gasketed cover with frame',fuel:'Petrol pump A&W covers, C250 / D400',recess:'Tray top for tiles or paving',gully:'Slotted, with or without frame',custom:'Chambers, multi-covers, drain channels, gratings, L angles'};
 
 /* ---------- State ---------- */
 const today=()=>T.todayISO();
@@ -1769,10 +1850,14 @@ function normItem(it,dfltDisc){
     if(!(l>0&&w>0&&h>0)) return null;
     n={prod:'custom',kind:'channel',name:String(it.name||'').trim()||'FRP Drain Channel',l,w,h,grate:it.grate==='without'?'without':'with',
        frame:'none',load:T.isLoadIdx(it.load)?+it.load:null,loadText:String(it.loadText||''),price:+it.price||null,qty,disc,wording:it.wording||null};
+  } else if(it.prod==='custom' && it.kind==='angle'){
+    const l=parseInt(it.l,10), sec=String(it.sec||'');
+    if(!(l>0) || !/^\d{2,3}x\d{2,3}x\d{1,2}(?:\.\d)?$/.test(sec)) return null;
+    n={prod:'custom',kind:'angle',name:String(it.name||'').trim()||'FRP L Angle',sec,l,frame:'none',load:null,loadText:'',price:+it.price||null,qty,disc,wording:it.wording||null};
   } else if(it.prod==='custom' && it.kind==='grating'){
     const l=parseInt(it.l,10), w=parseInt(it.w,10), h=parseInt(it.h,10);
     if(!(l>0&&w>0)) return null;
-    n={prod:'custom',kind:'grating',name:String(it.name||'').trim()||'FRP Grating',l,w,h:h>0?h:null,
+    n={prod:'custom',kind:'grating',name:String(it.name||'').trim()||'FRP Grating',l,w,h:h>0?h:null,plate:!!it.plate,
        frame:T.normFrame('custom',it.frame||'none'),load:T.isLoadIdx(it.load)?+it.load:null,loadText:String(it.loadText||''),price:+it.price||null,qty,disc,wording:it.wording||null};
   } else if(it.prod==='custom'){
     const l=parseInt(it.l,10), w=parseInt(it.w,10), h=parseInt(it.h,10);
@@ -1800,7 +1885,9 @@ const P=Object.assign({prod:'solid',shape:'Square',id:'s600',frame:'frp',load:2,
   m:{name:'FRP/GRP Multiple Manhole Cover',l:1800,w:900,covers:2,load:2}},saved.picker||{});
 P.ck = T.CUSTOM_KINDS.includes(P.ck) ? P.ck : 'chamber';
 P.ch=Object.assign({name:'FRP Drain Channel',l:1000,w:300,h:300,grate:'with',load:4},P.ch||{});
-P.g=Object.assign({name:'FRP Grating',l:1200,w:604,h:30,load:2},P.g||{});
+P.g=Object.assign({name:'FRP Grating',l:1200,w:604,h:30,plate:false,load:2},P.g||{});
+P.a=Object.assign({name:'FRP L Angle',sec:'35x35x4',l:1000},P.a||{});
+if(!T.L_ANGLE_SECTIONS.includes(P.a.sec)) P.a.sec='35x35x4';
 P.m=Object.assign({name:'FRP/GRP Multiple Manhole Cover',l:1800,w:900,covers:2,load:2},P.m||{});
 if(!T.DATA[P.prod] && P.prod!=='custom') P.prod='solid';
 P.c=Object.assign({name:'FRP Chamber',l:1000,w:1000,h:600,finish:'single',load:2},P.c||{});
@@ -1821,7 +1908,7 @@ if(!Array.isArray(savedF.paySlabs) || !savedF.paySlabs.length){
   F.paySlabs = !old ? [{pct:100,stage:'ADVANCE'}].map(x=>Object.assign({},x)) : m ? [{pct:+m[1],stage:m[2]}] : [{pct:100,stage:old}];
 }
 delete F.transport; delete F.payments;
-const ITEM_KEYS=['prod','kind','covers','id','load','frame','qty','wording','disc','depth','price','name','l','w','h','finish','grate','loadText'];
+const ITEM_KEYS=['prod','kind','covers','id','load','frame','qty','wording','disc','depth','price','name','l','w','h','finish','grate','loadText','plate','sec'];
 function saveQuote(){ store.set(K_QUOTE,{items:Q.items.map(it=>{ const o={}; for(const k of ITEM_KEYS) if(it[k]!==undefined) o[k]=it[k]; return o; }),mode:Q.mode,draft:$('#quick').value,picker:P}); }
 function saveFields(){ store.set(K_FIELDS,F); }
 
@@ -1977,14 +2064,15 @@ qaBox.addEventListener('drop',e=>{ const f=e.dataTransfer&&e.dataTransfer.files&
 
 /* ---------- Visual picker ---------- */
 const PICK_PRODUCTS=[...T.PRODUCTS,'custom'];
-const PROD_NAME=k=>k==='custom'?'Custom: chamber, channel, grating':T.DATA[k].name;
+const PROD_NAME=k=>k==='custom'?'Custom: chamber, channel, grating, L angle':T.DATA[k].name;
 function rowsOf(prod,shape){ return prod==='custom'?[]:(T.DATA[prod].shapes[shape]||[]); }
 function shapesOf(prod){ return T.SHAPES.filter(s=>rowsOf(prod,s).length); }
 function pItem(load){
   const L = load===undefined ? P.load : load;
   if(P.prod==='custom' && P.ck==='multi') return {prod:'custom',kind:'multi',name:P.m.name,l:P.m.l,w:P.m.w,covers:P.m.covers,frame:P.frame,load:P.m.load>=0?P.m.load:null,price:P.price,qty:P.qty};
   if(P.prod==='custom' && P.ck==='channel') return {prod:'custom',kind:'channel',name:P.ch.name,l:P.ch.l,w:P.ch.w,h:P.ch.h,grate:P.ch.grate,frame:'none',load:P.ch.load>=0?P.ch.load:null,loadText:'',price:P.price,qty:P.qty};
-  if(P.prod==='custom' && P.ck==='grating') return {prod:'custom',kind:'grating',name:P.g.name,l:P.g.l,w:P.g.w,h:+P.g.h>0?P.g.h:null,frame:P.frame,load:P.g.load>=0?P.g.load:null,loadText:'',price:P.price,qty:P.qty};
+  if(P.prod==='custom' && P.ck==='angle') return {prod:'custom',kind:'angle',name:P.a.name,sec:P.a.sec,l:P.a.l,frame:'none',load:null,loadText:'',price:P.price,qty:P.qty};
+  if(P.prod==='custom' && P.ck==='grating') return {prod:'custom',kind:'grating',name:P.g.name,l:P.g.l,w:P.g.w,h:+P.g.h>0?P.g.h:null,plate:!!P.g.plate,frame:P.frame,load:P.g.load>=0?P.g.load:null,loadText:'',price:P.price,qty:P.qty};
   if(P.prod==='custom') return {prod:'custom',name:P.c.name,l:P.c.l,w:P.c.w,h:P.c.h,finish:P.c.finish,frame:P.frame,load:P.c.load>=0?P.c.load:null,loadText:'',price:P.price,qty:P.qty};
   return {prod:P.prod,id:P.id,load:P.prod==='tank'?0:L,frame:P.frame,qty:P.qty,depth:P.prod==='recess'?P.depth:null,price:P.price};
 }
@@ -1998,7 +2086,7 @@ function closestRow(rows,target){
 function frameOptions(){ return T.allowedFrames(P.prod,P.id); }
 function normalisePicker(){
   P.qty=Math.max(1,Math.min(9999,parseInt(P.qty,10)||1));
-  if(P.prod==='custom'){ if(P.ck==='channel') P.frame='none'; else if(!['frp','ms','none'].includes(P.frame)) P.frame=P.ck==='grating'?'none':'ms'; return; }
+  if(P.prod==='custom'){ if(P.ck==='channel'||P.ck==='angle') P.frame='none'; else if(!['frp','ms','none'].includes(P.frame)) P.frame=P.ck==='grating'?'none':'ms'; return; }
   const shapes=shapesOf(P.prod);
   if(!shapes.includes(P.shape)) P.shape=shapes.includes('Square')?'Square':shapes[0];
   const rows=rowsOf(P.prod,P.shape);
@@ -2052,6 +2140,13 @@ function coverSVG(){
     for(let yy=y+5;yy<y+h-1;yy+=5) s+='<line x1="'+x+'" y1="'+yy+'" x2="'+(x+w)+'" y2="'+yy+'" stroke="'+blue+'" stroke-width="0.9"/>';
     return s;
   }
+  if(P.prod==='custom' && P.ck==='angle'){
+    const a=+String(P.a.sec).split('x')[0]||35, sc=56/45, w=Math.max(20,a*sc), t=6;
+    const x=cx-w/2, y=cy-w/2;
+    s+='<path d="M'+x+' '+y+'v'+w+'h'+w+'v-'+t+'h-'+(w-t)+'v-'+(w-t)+'z" fill="'+tint+'" stroke="'+blue+'" stroke-width="1.8" stroke-linejoin="round"/>';
+    s+='<path d="M'+(x+t+4)+' '+(y+w-t-4)+'l'+(w*0.45)+' -'+(w*0.45)+'" stroke="'+yellow+'" stroke-width="2" stroke-dasharray="3 2"/>';
+    return s;
+  }
   if(P.prod==='custom' && P.ck==='channel'){
     const W=+P.ch.w||1, H=+P.ch.h||1, sc=60/Math.max(W,H);
     const w=Math.max(16,W*sc), h=Math.max(12,H*sc), x=cx-w/2, y=cy-h/2+6, t=4;
@@ -2102,7 +2197,7 @@ function coverSVG(){
   }
   return s;
 }
-function focusKey(){ const a=document.activeElement; if(!a||!a.dataset) return null; for(const k of ['prod','shape','size','frame','load','finish','grate','depth','kind']) if(a.dataset[k]!==undefined) return '[data-'+k+'="'+a.dataset[k]+'"]'; return null; }
+function focusKey(){ const a=document.activeElement; if(!a||!a.dataset) return null; for(const k of ['prod','shape','size','frame','load','finish','grate','plate','sec','depth','kind']) if(a.dataset[k]!==undefined) return '[data-'+k+'="'+a.dataset[k]+'"]'; return null; }
 function renderPicker(){
   const fk=focusKey();
   normalisePicker();
@@ -2121,19 +2216,25 @@ function renderPicker(){
     for(const el of document.querySelectorAll('#customWrap [data-m]')) if(document.activeElement!==el) el.value=P.m[el.dataset.m]??'';
     for(const el of document.querySelectorAll('#customWrap [data-ch]')) if(document.activeElement!==el) el.value=P.ch[el.dataset.ch]??'';
     for(const el of document.querySelectorAll('#customWrap [data-g]')) if(document.activeElement!==el) el.value=P.g[el.dataset.g]??'';
+    for(const el of document.querySelectorAll('#customWrap [data-a]')) if(document.activeElement!==el) el.value=P.a[el.dataset.a]??'';
+    $('#plateSeg').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String((b.dataset.plate==='1')===!!P.g.plate)));
+    $('#secSeg').innerHTML=T.L_ANGLE_SECTIONS.map(k=>'<button type="button" data-sec="'+k+'" aria-pressed="'+(k===P.a.sec)+'">'+esc(k.split('x').join(' × '))+' mm <span class="cnt">₹'+T.L_ANGLE_RATE_M[k]+'/m</span></button>').join('');
+    if(P.ck==='grating') $('#gRate').innerHTML=rateHint(pItem(),'m²');
+    if(P.ck==='angle') $('#aRate').innerHTML=rateHint(pItem(),'m');
     if(P.ck==='grating'){ const ti=T.teethInfo(pItem()), te=$('#gTeeth'); te.className='teeth '+ti.teeth; te.innerHTML='<b>'+(ti.teeth==='close'?'Close teeth':'Open teeth')+'</b> '+esc(ti.reason); }
     $('#grateSeg').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.grate===P.ch.grate)));
     $('#kindSeg').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.kind===P.ck)));
-    $('#chamberWrap').hidden = P.ck!=='chamber'; $('#multiWrap').hidden = P.ck!=='multi'; $('#channelWrap').hidden = P.ck!=='channel'; $('#gratingWrap').hidden = P.ck!=='grating';
+    $('#chamberWrap').hidden = P.ck!=='chamber'; $('#multiWrap').hidden = P.ck!=='multi'; $('#channelWrap').hidden = P.ck!=='channel'; $('#gratingWrap').hidden = P.ck!=='grating'; $('#angleWrap').hidden = P.ck!=='angle';
     $('#finishSeg').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.finish===P.c.finish)));
   }
-  $('#frameWrap').hidden = isC && P.ck==='channel';
+  $('#frameWrap').hidden = isC && (P.ck==='channel'||P.ck==='angle');
+  $('#loadWrap').hidden = isC && P.ck==='angle';
   if(P.prod==='recess' && document.activeElement!==$('#pDepth')) $('#pDepth').value=P.depth||'';
   // Frame
   const lf = isC ? null : P.prod==='gully' ? null : T.listFrame({prod:P.prod,id:P.id});
   $('#frameSeg').innerHTML=frameOptions().map(fr=>'<button type="button" data-frame="'+fr+'" aria-pressed="'+(fr===P.frame)+'">'+esc(T.FRAME_LABEL[fr])+(lf&&fr===lf?' <span class="cnt">list price</span>':'')+'</button>').join('');
   const manual=T.isManual(pItem());
-  $('#frameHint').textContent = isC ? (P.ck==='multi'?'Multi-cover manhole covers are priced by hand. MS frame is standard. Enter the price per piece below.':P.ck==='grating'?'Gratings are priced by hand. Enter the price per piece below.':'Chambers are priced by hand. Enter the price per piece below.')
+  $('#frameHint').textContent = isC ? (P.ck==='multi'?'Multi-cover manhole covers are priced by hand. MS frame is standard. Enter the price per piece below.':P.ck==='grating'?(manual?'The price list has gratings per m² in 30 mm and 40 mm height without frame. For this choice, enter the price per piece below.':'Priced from the price list per m² (without frame). A frame needs a typed price.'):'Chambers are priced by hand. Enter the price per piece below.')
     : P.prod==='gully' ? 'Both water gully options are in the price list.'
     : manual ? 'The price list has no '+T.lcFirst(T.FRAME_LABEL[P.frame])+' price for this cover. Enter the price per piece below.'
     : lf==='ms' ? 'This twin-cover size is listed with an MS frame.' : 'List prices include the FRP frame.';
@@ -2167,7 +2268,7 @@ function renderPicker(){
   const pe=$('#abPrice');
   if(manual){ pe.className='price na'; pe.innerHTML = price===null ? 'Enter the price<small>No list price for this choice</small>' : esc(T.rupees(price))+'<small>per piece, excl. GST, entered by you</small>'; }
   else if(price===null){ pe.className='price na'; pe.innerHTML='Price on request<small>This load class is not priced for this size</small>'; }
-  else { pe.className='price num'; pe.innerHTML=esc(T.rupees(price))+'<small>per cover, excl. GST</small>'; }
+  else { pe.className='price num'; pe.innerHTML=esc(T.rupees(price))+'<small>per '+(isC?'piece':'cover')+', excl. GST</small>'; }
   const flag=price===null?null:T.flagFor(item), fe=$('#abFlag');
   fe.hidden=!flag; fe.textContent=flag||'';
   $('#abQty').value=P.qty;
@@ -2175,10 +2276,11 @@ function renderPicker(){
   const cBad = isC && (P.ck==='multi' ? !(+P.m.l>0 && +P.m.w>0 && mN>=2 && mN<=20 && P.m.load>=0)
     : P.ck==='channel' ? !(+P.ch.l>0 && +P.ch.w>0 && +P.ch.h>0)
     : P.ck==='grating' ? !(+P.g.l>0 && +P.g.w>0)
+    : P.ck==='angle' ? !(+P.a.l>0)
     : !(+P.c.l>0 && +P.c.w>0 && +P.c.h>0));
   const btn=$('#abAdd');
   btn.disabled = price===null || cBad;
-  btn.textContent = cBad ? (P.ck==='multi' ? (!(mN>=2&&mN<=20)?'Covers: 2 to 20':!(P.m.load>=0)?'Pick the load class':'Enter length and width') : P.ck==='channel' ? 'Enter L, W and depth' : P.ck==='grating' ? 'Enter length and width' : 'Enter L, W and H') : price===null ? (manual?'Enter the price to add':'Price on request') : 'Add '+P.qty+' to quote, '+T.rupees(price*P.qty);
+  btn.textContent = cBad ? (P.ck==='multi' ? (!(mN>=2&&mN<=20)?'Covers: 2 to 20':!(P.m.load>=0)?'Pick the load class':'Enter length and width') : P.ck==='channel' ? 'Enter L, W and depth' : P.ck==='grating' ? 'Enter length and width' : P.ck==='angle' ? 'Enter the length' : 'Enter L, W and H') : price===null ? (manual?'Enter the price to add':'Price on request') : 'Add '+P.qty+' to quote, '+T.rupees(price*P.qty);
   if(fk){ const el=document.querySelector('#step1 '+fk); if(el && !el.disabled) el.focus(); }
   saveQuote();
 }
@@ -2195,11 +2297,21 @@ $('#sizeGrid').addEventListener('click',e=>{ const b=e.target.closest('[data-siz
 $('#frameSeg').addEventListener('click',e=>{ const b=e.target.closest('[data-frame]'); if(!b||b.dataset.frame===P.frame) return; P.frame=b.dataset.frame; if(P.prod!=='custom') P.price=''; renderPicker(); });
 $('#finishSeg').addEventListener('click',e=>{ const b=e.target.closest('[data-finish]'); if(!b) return; P.c.finish=b.dataset.finish; renderPicker(); });
 $('#loadGrid').addEventListener('click',e=>{ const b=e.target.closest('[data-load]'); if(!b||b.disabled||P.prod==='tank') return;
-  if(P.prod==='custom') ({multi:P.m,channel:P.ch,grating:P.g}[P.ck]||P.c).load=+b.dataset.load; else { if(+b.dataset.load!==P.load) P.price=''; P.load=+b.dataset.load; } renderPicker(); });
+  if(P.prod==='custom') ({multi:P.m,channel:P.ch,grating:P.g,angle:P.a}[P.ck]||P.c).load=+b.dataset.load; else { if(+b.dataset.load!==P.load) P.price=''; P.load=+b.dataset.load; } renderPicker(); });
 $('#customWrap').addEventListener('input',e=>{ const d=e.target.dataset;
-  if(d.c) P.c[d.c]=e.target.value; else if(d.m) P.m[d.m]=e.target.value; else if(d.ch) P.ch[d.ch]=e.target.value; else if(d.g) P.g[d.g]=e.target.value; else return; renderPicker(); });
+  if(d.c) P.c[d.c]=e.target.value; else if(d.m) P.m[d.m]=e.target.value; else if(d.ch) P.ch[d.ch]=e.target.value; else if(d.g) P.g[d.g]=e.target.value; else if(d.a) P.a[d.a]=e.target.value; else return;
+  if(d.g||d.a) P.price=''; renderPicker(); });
+$('#plateSeg').addEventListener('click',e=>{ const b=e.target.closest('[data-plate]'); if(!b) return; P.g.plate=b.dataset.plate==='1'; P.price=''; renderPicker(); });
+$('#secSeg').addEventListener('click',e=>{ const b=e.target.closest('[data-sec]'); if(!b) return; P.a.sec=b.dataset.sec; P.price=''; renderPicker(); });
+/* "1.200 m × 0.604 m = 0.725 m² × ₹7,995/m² = ₹5,794.78 per piece" */
+function rateHint(it,unit){
+  const r=T.customRate(it), q=T.customQtyBasis(it);
+  if(!r||!q) return '';
+  const qt = unit==='m²' ? (+it.l/1000).toFixed(3)+' m × '+(+it.w/1000).toFixed(3)+' m = '+(+q.toFixed(4))+' m²' : (+q.toFixed(3))+' m';
+  return 'Price list: '+esc(qt)+' × ₹'+esc(T.fmtIN(r,0))+'/'+unit+' = <b>'+esc(T.rupees(T.customListPrice(it)))+'</b> per piece';
+}
 $('#grateSeg').addEventListener('click',e=>{ const b=e.target.closest('[data-grate]'); if(!b) return; P.ch.grate=b.dataset.grate; renderPicker(); });
-$('#kindSeg').addEventListener('click',e=>{ const b=e.target.closest('[data-kind]'); if(!b||b.dataset.kind===P.ck) return; P.ck=b.dataset.kind; P.price=''; P.frame=P.ck==='grating'||P.ck==='channel'?'none':'ms'; renderPicker(); });
+$('#kindSeg').addEventListener('click',e=>{ const b=e.target.closest('[data-kind]'); if(!b||b.dataset.kind===P.ck) return; P.ck=b.dataset.kind; P.price=''; P.frame=P.ck==='grating'||P.ck==='channel'||P.ck==='angle'?'none':'ms'; renderPicker(); });
 $('#pDepth').addEventListener('input',e=>{ P.depth=e.target.value; renderPicker(); });
 $('#depthWrap').addEventListener('click',e=>{ const b=e.target.closest('[data-depth]'); if(!b) return; P.depth=b.dataset.depth; $('#pDepth').value=P.depth; renderPicker(); });
 $('#abPriceIn').addEventListener('input',e=>{ P.price=e.target.value; renderPicker(); });
@@ -2211,7 +2323,7 @@ $('#abAdd').addEventListener('click',()=>{
   const raw=pItem();
   if(T.unitPrice(raw)===null){ toast(T.isManual(raw)?'Enter the price per piece first.':'This load class is on request for this size, so it can\'t be priced here.',true); if(T.isManual(raw)) $('#abPriceIn').focus(); return; }
   const it=addItem(raw);
-  if(!it){ toast(P.prod!=='custom'?'This item could not be added.':P.ck==='multi'?'Enter the length, width, number of covers (2 to 20) and load class first.':P.ck==='channel'?'Enter the drain channel length, width and depth first.':P.ck==='grating'?'Enter the grating length and width first.':'Enter the chamber length, width and height first.',true); return; }
+  if(!it){ toast(P.prod!=='custom'?'This item could not be added.':P.ck==='multi'?'Enter the length, width, number of covers (2 to 20) and load class first.':P.ck==='channel'?'Enter the drain channel length, width and depth first.':P.ck==='grating'?'Enter the grating length and width first.':P.ck==='angle'?'Enter the L angle length first.':'Enter the chamber length, width and height first.',true); return; }
   const added=P.qty;
   P.qty=1; // ready for the next product
   saveQuote(); renderSummary(); renderPicker(); flashSummary();

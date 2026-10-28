@@ -528,6 +528,37 @@ await test('UI: drain channel and grating from the picker', async () => {
   await ctx.close();
 });
 
+await test('UI: grating priced per m² and L angle per metre from the picker', async () => {
+  const { ctx, page } = await newPage();
+  await page.click('[data-prod="custom"]'); await page.click('[data-kind="grating"]');
+  await page.fill('#gL', '1200'); await page.fill('#gW', '604'); await page.fill('#gT', '30');
+  ok(await page.isHidden('#abManual'), 'no typed price for a listed grating');
+  ok((await page.textContent('#gRate')).includes('× ₹7,995/m² = ₹5,794.78 per piece'), await page.textContent('#gRate'));
+  eq(await page.textContent('#abAdd'), 'Add 1 to quote, ₹5,794.78');
+  await page.click('[data-plate="1"]');
+  ok((await page.textContent('#gRate')).includes('₹11,030/m²'));
+  await page.click('#abAdd');
+  await page.fill('#gT', '38'); ok(await page.isVisible('#abManual'), 'other heights need a price');
+  await page.fill('#gT', '40'); await page.click('[data-plate="0"]');
+  await page.click('[data-frame="ms"]'); ok(await page.isVisible('#abManual'), 'a frame needs a price');
+  await page.click('[data-frame="none"]');
+  await page.click('[data-kind="angle"]');
+  ok(await page.isVisible('#angleWrap')); ok(await page.isHidden('#frameWrap')); ok(await page.isHidden('#loadWrap'), 'no load class for an L angle');
+  await page.click('[data-sec="45x45x4"]'); await page.fill('#aL', '3000');
+  ok((await page.textContent('#aRate')).includes('3 m × ₹640/m = ₹1,920 per piece'), await page.textContent('#aRate'));
+  await page.fill('#abQty', '10'); await page.dispatchEvent('#abQty', 'change');
+  eq(await page.textContent('#abAdd'), 'Add 10 to quote, ₹19,200');
+  await page.click('#abAdd');
+  const M = await page.evaluate(() => window.__tdApp.model());
+  eq(M.groups.map(g => g.title).join(' | '), '‘THERMODRAIN’ FRP GRATINGS WITH CHEQUERED PLATE | ‘THERMODRAIN’ FRP ‘L’ ANGLE');
+  eq(M.groups[1].items[0].wording, '45mm X 45mm X 4mm thk, 3000mm long'); eq(M.groups[1].items[0].load, '-');
+  eq(M.totals.sub, 7994.54 + 19200);
+  await page.reload(); await page.waitForFunction(() => !!window.__tdApp);
+  eq(await page.locator('#sumItems .item').count(), 2, 'items survive a reload');
+  eq(page.errors.length, 0, page.errors.join());
+  await ctx.close();
+});
+
 await test('UI: fuel station covers in the picker (C250 / D400 only, CIC sizes)', async () => {
   const { ctx, page } = await newPage();
   await page.click('[data-prod="fuel"]');

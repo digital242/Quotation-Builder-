@@ -127,7 +127,7 @@ await test('parser: load words, boundaries and 2.5 before 5 T', () => {
   const r2 = L('solid 1500x1500 d400 2'); eq(r2.item.id, 's1500'); eq(r2.item.qty, 2);
 });
 await test('parser: errors are plain sentences', () => {
-  eq(TD.parseLine('600x600 b125').error, 'Name the product: solid top, recess, gully, air & water tight, fuel station, hinged, tank, chamber, multiple cover, drain channel or grating.');
+  eq(TD.parseLine('600x600 b125').error, 'Name the product: solid top, recess, gully, air & water tight, fuel station, hinged, tank, chamber, multiple cover, drain channel, grating or L angle.');
   eq(TD.parseLine('solid top b125 qty 3').error, 'Add the size, for example 600x600 or 900 dia.');
 });
 await test('parser: circular, × and *, twin preference, gully out-to-out map', () => {
@@ -540,6 +540,44 @@ await test('client data: one row per product, CSV round trip, same quotation rep
   eq(ws.rowCount, 4); eq(ws.getCell('C2').value, 'ACME INFRA PVT LTD'); eq(ws.getCell('C4').value, 'ZETA CO', 'sorted by client');
   ok(ws.getCell('A2').value instanceof Date); eq(ws.getCell('H2').value, 4); eq(ws.getCell('K2').value, 44442);
   ok(ws.autoFilter, 'filter on the header');
+});
+await test('gratings per m² and L angle per metre, from the price list w.e.f. 10.08.2026', async () => {
+  // the rates exactly as printed
+  eq(JSON.stringify(TD.GRATING_RATE_M2), '{"30":7995,"40":9950}');
+  eq(JSON.stringify(TD.GRATING_CHQ_RATE_M2), '{"30":11030,"40":13000}');
+  eq(JSON.stringify(TD.L_ANGLE_RATE_M), '{"35x35x4":520,"45x45x4":640}');
+  const p = l => { const r = TD.parseLine(l); ok(r.ok, l + ': ' + r.error); return r; };
+  let r = p('FRP grating 1200x604 30 mm ht qty 3');
+  eq(r.price, 5794.78, '1.2 × 0.604 m² × 7995'); eq(TD.isManual(r.item), false); eq(r.item.qty, 3);
+  r = p('grating 1001x366x40 5 ton qty 235'); eq(r.price, Math.round(1.001 * 0.366 * 9950 * 100) / 100);
+  eq(TD.defaultWording(r.item), '366mm W X 1001mm L x 40mm ht, close teeth');
+  r = p('grating 1200x604 40mm ht chequered plate qty 2'); eq(r.price, Math.round(1.2 * 0.604 * 13000 * 100) / 100); eq(r.item.plate, true);
+  eq(TD.defaultWording(r.item), '604mm W X 1200mm L x 40mm ht, close teeth, with chequered plate (one side closed)');
+  eq(TD.groupTitle(TD.groupKey(r.item)), '‘THERMODRAIN’ FRP GRATINGS WITH CHEQUERED PLATE');
+  eq(TD.groupTitleTail(TD.groupKey(r.item)), ' (one side closed) (DIMENSIONAL TOLERANCE IS ± 3mm)');
+  eq(p('grating 1200x604 one side closed 30 mm ht qty 1').price, 7994.54, 'one side closed = chequered plate, 30 mm: 0.7248 × 11030');
+  eq(p('grating 1200x604 30mm ht price 1 qty 1').price, 5794.78, 'a typed price never replaces a list price');
+  ok(/30 mm and 40 mm/.test(TD.parseLine('grating 1200x604x38 qty 1').error), 'other heights need a price');
+  eq(p('grating 1200x604x38 price 5000 qty 1').price, 5000);
+  ok(/30 mm and 40 mm/.test(TD.parseLine('grating 1200x604x30 ms frame qty 1').error), 'a frame needs a price');
+  eq(p('grating 1200x604x30 ms frame price 9000 qty 1').price, 9000);
+  eq(TD.checkLine('FRP grating 1200x604 30 mm ht qty 3').state, 'ready', 'no price needed for a listed grating');
+  // L angle
+  r = p('L angle 35x35x4 3000 mm long qty 10'); eq(r.price, 1560); eq(r.item.qty, 10); eq(r.item.l, 3000);
+  eq(TD.defaultWording(r.item), '35mm X 35mm X 4mm thk, 3000mm long'); eq(TD.itemLoadPrint(r.item), '-');
+  eq(TD.groupTitle(TD.groupKey(r.item)), '‘THERMODRAIN’ FRP ‘L’ ANGLE'); eq(TD.groupNote(TD.groupKey(r.item)), null);
+  eq(p('l-angle 45x45 length 2 m qty 5').price, 1280);
+  r = p('FRP L angle 45x45x4mm thk 6m long 20 nos'); eq(r.price, 3840); eq(r.item.qty, 20);
+  ok(/not in the price list/.test(TD.parseLine('L angle 50x50x5 3000 long qty 2').error));
+  eq(p('L angle 50x50x5 3000 long price 900 qty 2').price, 900);
+  ok(/length of each piece/.test(TD.parseLine('L angle 35x35x4 qty 2').error));
+  eq(TD.checkLine('L angle 35x35x4 3000 mm long qty 10').state, 'ready');
+  eq(TD.checkLine('L angle 35x35x4 qty 10').state, 'pending');
+  eq(p('chamber 1000x1000x600 two sided b125 price 1 qty 1').item.finish, 'double', 'chamber finish still read');
+  const x = await makeXlsx('QTN_angle.xlsx', ['FRP grating 1200x604 30 mm ht qty 3', 'L angle 35x35x4 3000 mm long qty 10'], 0, true);
+  const find = txt => { let hit = null; x.ws.eachRow(row => row.eachCell(c => { if (!hit && cellText(c.value) === txt) hit = c; })); return hit; };
+  ok(find('‘THERMODRAIN’ FRP ‘L’ ANGLE'), 'L angle heading'); ok(find('35mm X 35mm X 4mm thk, 3000mm long'));
+  near(x.ws.getCell('H' + x.totalRowsAt.total).value.result, 5794.78 * 3 + 15600);
 });
 await test('Excel: US$ export quotation has US$ prices, no GST rows, and says GST not applicable', async () => {
   const x = await makeXlsx('QTN_usd.xlsx', [...FOUR, 'chamber 1000x1000x600 two sided b125 price 45000 qty 2'], undefined, 'usd', { ...FIELDS, usdRate: '88.5' });

@@ -38,6 +38,21 @@ function randomItem() {
       h: 100 + Math.floor(rnd() * 600), grate: pick(['with', 'without']), frame: 'none', load: pick([null, 2, 3, 4, 5]),
       price: Math.round(2000 + rnd() * 30000), qty: 1 + Math.floor(rnd() * 50), disc: pick([0, 5, 10]) };
   }
+  if (rnd() < 0.05) { // L angle, priced per metre from the list (listed sections) or typed
+    const sec = pick(['35x35x4', '45x45x4', '35x35x4', '50x50x5']), l = pick([1000, 2000, 3000, 6000, 1500]);
+    const it = { prod: 'custom', kind: 'angle', name: 'FRP L Angle', sec, l, frame: 'none', load: null, qty: 1 + Math.floor(rnd() * 40), disc: pick([0, 5]),
+      price: sec === '50x50x5' ? 1234 : null };
+    const rate = { '35x35x4': 520, '45x45x4': 640 }[sec];
+    checks++; if (rate && TD.unitPrice(it) !== Math.round(l / 1000 * rate * 100) / 100) failures.push(`L angle ${sec} ${l}: ${TD.unitPrice(it)}`);
+    return it;
+  }
+  if (rnd() < 0.06) { // listed grating: 30 / 40 mm height, no frame, per m²
+    const plate = rnd() < 0.4, h = pick([30, 40]), l = 300 + Math.floor(rnd() * 2130), w = 300 + Math.floor(rnd() * 700);
+    const it = { prod: 'custom', kind: 'grating', name: 'FRP Grating', l, w, h, plate, frame: 'none', load: pick([null, 1, 2]), price: null, qty: 1 + Math.floor(rnd() * 50), disc: pick([0, 10]) };
+    const rate = (plate ? { 30: 11030, 40: 13000 } : { 30: 7995, 40: 9950 })[h];
+    checks++; if (TD.unitPrice(it) !== Math.round(l * w / 1e6 * rate * 100) / 100) failures.push(`grating ${l}x${w}x${h} ${plate}: ${TD.unitPrice(it)}`);
+    return it;
+  }
   if (rnd() < 0.06) {
     return { prod: 'custom', kind: 'grating', name: 'FRP Grating', l: 300 + Math.floor(rnd() * 3400), w: 300 + Math.floor(rnd() * 1200),
       h: pick([null, 25, 38, 50]), frame: pick(['none', 'none', 'frp', 'ms']), load: pick([null, 0, 1, 2, 3, 4]),
