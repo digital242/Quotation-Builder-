@@ -485,7 +485,7 @@ await test('drain channel and grating: typed lines, checklist, wording and Excel
   ok(find('‘THERMODRAIN’ FRP GRATINGS (DIMENSIONAL TOLERANCE IS ± 3mm)'), 'grating heading, tolerance not bold');
   ok(find('500mm W X 1000mm L x 38mm ht, open teeth'), 'grating wording');
   ok(find(TD.NOTE_GRATING), 'grating note');
-  near(x.ws.getCell('H' + x.totalRowsAt.total).value.result, 85000 + 20000 + 19500 + 4 * TD.unitPrice(TD.parseLine('solid 600x600 b125 qty 4').item));
+  near(x.ws.getCell('H' + x.totalRowsAt.total).value.result, 85000 + 20000 + 3 * 4975 + 4 * /* 38 mm grating: 0.5 m² at the 40 mm rate 9950 */ TD.unitPrice(TD.parseLine('solid 600x600 b125 qty 4').item));
 });
 await test('gratings: close teeth for catalogue sizes (30 / 40 mm high, max 1000 x 2430), open teeth for any other size', async () => {
   eq(TD.CLOSE_TEETH_SIZES.length, 61); eq(TD.CLOSE_TEETH_SIZES[0], 48); eq(TD.CLOSE_TEETH_SIZES[60], 2430);
@@ -557,9 +557,15 @@ await test('gratings per m² and L angle per metre, from the price list w.e.f. 1
   eq(TD.groupTitleTail(TD.groupKey(r.item)), ' (one side closed) (DIMENSIONAL TOLERANCE IS ± 3mm)');
   eq(p('grating 1200x604 one side closed 30 mm ht qty 1').price, 7994.54, 'one side closed = chequered plate, 30 mm: 0.7248 × 11030');
   eq(p('grating 1200x604 30mm ht price 1 qty 1').price, 5794.78, 'a typed price never replaces a list price');
-  ok(/30 mm and 40 mm/.test(TD.parseLine('grating 1200x604x38 qty 1').error), 'other heights need a price');
-  eq(p('grating 1200x604x38 price 5000 qty 1').price, 5000);
-  ok(/30 mm and 40 mm/.test(TD.parseLine('grating 1200x604x30 ms frame qty 1').error), 'a frame needs a price');
+  // heights between list heights use the next listed height up
+  r = p('grating 1200x604x38 qty 1'); eq(r.price, 7211.76, '38 mm at the 40 mm rate: 0.7248 × 9950'); eq(TD.rateHeight(r.item), 40);
+  eq(TD.defaultWording(r.item), '604mm W X 1200mm L x 38mm ht, open teeth', 'prints the real height');
+  eq(p('grating 1200x604x25 qty 1').price, 5794.78, '25 mm at the 30 mm rate');
+  eq(p('grating 1000x502x38 qty 1').price, 4994.9, '0.502 × 9950');
+  eq(p('grating 1200x604x38 chequered plate qty 1').price, 9422.4, '38 mm chequered at the 40 mm rate 13000');
+  ok(/up to 40 mm/.test(TD.parseLine('grating 1200x604x50 qty 1').error), 'above 40 mm needs a price');
+  eq(p('grating 1200x604x50 price 5000 qty 1').price, 5000);
+  ok(/without frame/.test(TD.parseLine('grating 1200x604x30 ms frame qty 1').error), 'a frame needs a price');
   eq(p('grating 1200x604x30 ms frame price 9000 qty 1').price, 9000);
   eq(TD.checkLine('FRP grating 1200x604 30 mm ht qty 3').state, 'ready', 'no price needed for a listed grating');
   // L angle

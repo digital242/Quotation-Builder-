@@ -977,8 +977,16 @@ const L_ANGLE_SECTIONS=Object.keys(L_ANGLE_RATE_M);
    (another height, a frame on the grating, or an L angle section that is not listed). */
 function customRate(it){
   const k=kindOf(it);
-  if(k==='grating'){ if(normFrame('custom',it.frame)!=='none') return null; return (it.plate?GRATING_CHQ_RATE_M2:GRATING_RATE_M2)[thickOf(it)]||null; }
+  if(k==='grating'){ if(normFrame('custom',it.frame)!=='none') return null; const h=rateHeight(it); return h ? (it.plate?GRATING_CHQ_RATE_M2:GRATING_RATE_M2)[h] : null; }
   if(k==='angle') return L_ANGLE_RATE_M[it.sec]||null;
+  return null;
+}
+/* The listed height whose rate applies: the next listed height at or above the grating's height
+   (e.g. 38 mm is priced at the 40 mm rate). Null above 40 mm, or when no height is given. */
+function rateHeight(it){
+  const t=thickOf(it); if(!t) return null;
+  const hs=Object.keys(it.plate?GRATING_CHQ_RATE_M2:GRATING_RATE_M2).map(Number).sort((a,b)=>a-b);
+  for(const h of hs) if(t<=h) return h;
   return null;
 }
 function customQtyBasis(it){ // m² per piece for a grating, metres per piece for an L angle
@@ -1354,8 +1362,9 @@ function parseLine(raw){
     if(d[2]!==null && !(d[2]>=5 && d[2]<=300)) return fail('Grating thickness looks wrong. Write it like 38 mm thick.');
     const item={prod,kind:'grating',name:'FRP Grating',l:d[0],w:d[1],h:d[2]||null,plate,frame:frame||'none',load,loadText:'',price,qty,disc};
     const up=unitPrice(item);
-    if(up===null) return fail(d[2]===null ? 'Add the grating height, 30 mm or 40 mm (priced per m²), or add the price per piece, for example price 6500.'
-      : 'The price list has gratings in 30 mm and 40 mm height without frame only. Add the price per piece, for example price 6500.');
+    if(up===null) return fail(d[2]===null ? 'Add the grating height, for example 30 mm ht or 40 mm ht (priced per m²), or add the price per piece, for example price 6500.'
+      : normFrame('custom',item.frame)!=='none' ? 'The price list rates per m² are for gratings without frame. Add the price per piece with the frame, for example price 6500.'
+      : 'The price list goes up to 40 mm height. Add the price per piece, for example price 6500.');
     return {ok:true,text,item,price:up,amount:up*qty};
   }
   if(prod==='custom'){
@@ -1799,7 +1808,7 @@ function buildClientDataWorkbook(ExcelJS,rows){
 }
 
 return {CLIENT_DATA_HEAD,clientDataRows,parseCsv,csvLine,mergeClientRows,buildClientDataWorkbook,LOADS,DATA,FLAGS,PRODUCTS,SHAPES,LOAD_CODE,LOAD_PRINT,PRINT_NAME,GROUP_TITLE,GROUP_NOTE,NOTE_MHC,NOTE_GRATING,GULLY_OTO,DEFAULT_FIELDS,CUSTOMER_KEYS,COLW,NUMFMT,
-  netPrice,findRow,checkLine,enquiryLines,isCic,FUEL_INFO,isMulti,kindOf,isChamber,thickOf,groupTitleTail,groupNote,customRate,customQtyBasis,customListPrice,GRATING_RATE_M2,GRATING_CHQ_RATE_M2,L_ANGLE_RATE_M,L_ANGLE_SECTIONS,angleSecText,teethInfo,teethOf,CLOSE_TEETH_SIZES,grateText,CUSTOM_KINDS,CUSTOM_DEFAULT_NAME,coversOf,allowedFrames,serialOf,lcFirst,isLoadIdx,isTwin,isTwinItem,priceOf,normFrame,listFrame,isManual,listPrice,unitPrice,pctOf,depthOf,itemDisc,itemSizeText,itemLoadText,itemLoadPrint,finishText,customName,groupTitle,FRAME_LABEL,usdRateOf,fmtUS,usd2,pctLabel,modeOf,linePrice,money,moneyShort,NUMFMT_USD,itemKey,groupKey,flagFor,gullyOTO,inchesOf,sizeText,loadText,loadPrint,productLabel,specText,
+  netPrice,findRow,checkLine,enquiryLines,isCic,FUEL_INFO,isMulti,kindOf,isChamber,thickOf,rateHeight,groupTitleTail,groupNote,customRate,customQtyBasis,customListPrice,GRATING_RATE_M2,GRATING_CHQ_RATE_M2,L_ANGLE_RATE_M,L_ANGLE_SECTIONS,angleSecText,teethInfo,teethOf,CLOSE_TEETH_SIZES,grateText,CUSTOM_KINDS,CUSTOM_DEFAULT_NAME,coversOf,allowedFrames,serialOf,lcFirst,isLoadIdx,isTwin,isTwinItem,priceOf,normFrame,listFrame,isManual,listPrice,unitPrice,pctOf,depthOf,itemDisc,itemSizeText,itemLoadText,itemLoadPrint,finishText,customName,groupTitle,FRAME_LABEL,usdRateOf,fmtUS,usd2,pctLabel,modeOf,linePrice,money,moneyShort,NUMFMT_USD,itemKey,groupKey,flagFor,gullyOTO,inchesOf,sizeText,loadText,loadPrint,productLabel,specText,
   defaultWording,wordingOf,TRANSPORT_MODES,PAY_PRESETS,transportText,paySlabsOf,slabTotal,slabProblem,paymentLines,fmtIN,rupees,rupees2,round2,ddmmyyyy,fyOf,pad3,todayISO,refNo,parseLine,describeParsed,matchSize,
   totals,autoSubject,introText,buildModel,whatsappText,wrapLines,rowHeightFor,buildWorkbook,stripB64,
   logos:{tp:LOGO_TP,td:LOGO_TD}};
@@ -2245,7 +2254,7 @@ function renderPicker(){
   $('#frameSeg').innerHTML=frameOptions().map(fr=>'<button type="button" data-frame="'+fr+'" aria-pressed="'+(fr===P.frame)+'">'+esc(T.FRAME_LABEL[fr])+(lf&&fr===lf?' <span class="cnt">list price</span>':'')+'</button>').join('');
   const manual=T.isManual(pItem());
   $('#frameHint').textContent = isC ? (P.ck==='multi'?'Multi-cover manhole covers are priced by hand. MS frame is standard. Enter the price per piece below.':P.ck==='grating'?(manual?(P.frame!=='none'?'The price list rates per m² are for gratings without frame. With a frame, enter a rate per m² or a price per piece below.'
-      :'No price list rate for '+(+P.g.h>0?P.g.h+' mm':'this')+' height: the list has 30 mm and 40 mm. Pick 30 mm or 40 mm above, or enter a rate per m² or a price per piece below.'):'Priced from the price list per m² (without frame). A frame needs a typed price.'):'Chambers are priced by hand. Enter the price per piece below.')
+      :(+P.g.h>0?'The price list goes up to 40 mm height. Enter a rate per m² or a price per piece below.':'Enter the height (up to 30 mm uses the 30 mm rate, up to 40 mm the 40 mm rate).')):'Priced from the price list per m² (without frame). A frame needs a typed price.'):'Chambers are priced by hand. Enter the price per piece below.')
     : P.prod==='gully' ? 'Both water gully options are in the price list.'
     : manual ? 'The price list has no '+T.lcFirst(T.FRAME_LABEL[P.frame])+' price for this cover. Enter the price per piece below.'
     : lf==='ms' ? 'This twin-cover size is listed with an MS frame.' : 'List prices include the FRP frame.';
@@ -2326,7 +2335,9 @@ function rateHint(it,unit){
   const r=T.customRate(it), q=T.customQtyBasis(it);
   if(!r||!q) return '';
   const qt = unit==='m²' ? (+it.l/1000).toFixed(3)+' m × '+(+it.w/1000).toFixed(3)+' m = '+(+q.toFixed(4))+' m²' : (+q.toFixed(3))+' m';
-  return 'Price list: '+esc(qt)+' × ₹'+esc(T.fmtIN(r,0))+'/'+unit+' = <b>'+esc(T.rupees(T.customListPrice(it)))+'</b> per piece';
+  const rh = unit==='m²' ? T.rateHeight(it) : null, t=T.thickOf(it);
+  const which = rh ? ' ('+rh+' mm ht rate'+(t!==rh?', used for '+t+' mm':'')+')' : '';
+  return 'Price list: '+esc(qt)+' × ₹'+esc(T.fmtIN(r,0))+'/'+unit+esc(which)+' = <b>'+esc(T.rupees(T.customListPrice(it)))+'</b> per piece';
 }
 $('#grateSeg').addEventListener('click',e=>{ const b=e.target.closest('[data-grate]'); if(!b) return; P.ch.grate=b.dataset.grate; renderPicker(); });
 $('#kindSeg').addEventListener('click',e=>{ const b=e.target.closest('[data-kind]'); if(!b||b.dataset.kind===P.ck) return; P.ck=b.dataset.kind; P.price=''; P.g.rate=''; P.frame=P.ck==='grating'||P.ck==='channel'||P.ck==='angle'?'none':'ms'; renderPicker(); });

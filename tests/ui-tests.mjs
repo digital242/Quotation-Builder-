@@ -513,13 +513,13 @@ await test('UI: drain channel and grating from the picker', async () => {
   ok(await page.isVisible('#gratingWrap')); ok(await page.isVisible('#frameWrap'));
   eq(await page.getAttribute('[data-frame="none"]', 'aria-pressed'), 'true', 'gratings default to without frame');
   ok((await page.textContent('#gTeeth')).startsWith('Close teeth'), 'default size is close teeth');
-  await page.fill('#gL', '1200'); await page.fill('#gW', '600'); await page.fill('#gT', '38'); await page.click('[data-load="3"]');
+  await page.fill('#gL', '1200'); await page.fill('#gW', '600'); await page.fill('#gT', '50'); await page.click('[data-load="3"]');
   ok((await page.textContent('#gTeeth')).includes('Nearest close-teeth sizes: width 564 or 604'), await page.textContent('#gTeeth'));
   await page.fill('#abPriceIn', '6500'); await page.click('#abAdd');
   const M = await page.evaluate(() => window.__tdApp.model());
   eq(M.groups.map(g => g.title).join(' | '), '‘THERMODRAIN’ FRP DRAIN CHANNEL WITH GRATING | ‘THERMODRAIN’ FRP DRAIN CHANNEL WITHOUT GRATING | ‘THERMODRAIN’ FRP GRATINGS');
   eq(M.groups[0].items[0].wording, '1000mm L X 300mm W X 300mm D, with FRP grating');
-  eq(M.groups[2].items[0].wording, '600mm W X 1200mm L x 38mm ht, open teeth');
+  eq(M.groups[2].items[0].wording, '600mm W X 1200mm L x 50mm ht, open teeth');
   eq(M.totals.sub, 85000 + 6000 + 6500);
   await page.reload(); await page.waitForFunction(() => !!window.__tdApp);
   eq(await page.locator('#sumItems .item').count(), 3, 'items survive a reload');
@@ -533,15 +533,19 @@ await test('UI: grating priced per m² and L angle per metre from the picker', a
   await page.click('[data-prod="custom"]'); await page.click('[data-kind="grating"]');
   await page.fill('#gL', '1200'); await page.fill('#gW', '604'); await page.fill('#gT', '30');
   ok(await page.isHidden('#abManual'), 'no typed price for a listed grating');
-  ok((await page.textContent('#gRate')).includes('× ₹7,995/m² = ₹5,794.78 per piece'), await page.textContent('#gRate'));
+  ok((await page.textContent('#gRate')).includes('× ₹7,995/m² (30 mm ht rate) = ₹5,794.78 per piece'), await page.textContent('#gRate'));
   eq(await page.textContent('#abAdd'), 'Add 1 to quote, ₹5,794.78');
   await page.click('[data-plate="1"]');
   ok((await page.textContent('#gRate')).includes('₹11,030/m²'));
   await page.click('#abAdd');
-  await page.fill('#gT', '38'); ok(await page.isVisible('#abManual'), 'other heights need a price');
-  ok((await page.textContent('#frameHint')).startsWith('No price list rate for 38 mm height'), await page.textContent('#frameHint'));
+  // 38 mm is priced at the 40 mm rate, no typing needed
+  await page.click('[data-plate="0"]'); await page.fill('#gL', '1000'); await page.fill('#gW', '502'); await page.fill('#gT', '38');
+  ok(await page.isHidden('#abManual'), '38 mm priced from the list');
+  ok((await page.textContent('#gRate')).includes('× ₹9,950/m² (40 mm ht rate, used for 38 mm) = ₹4,994.90 per piece'), await page.textContent('#gRate'));
+  await page.fill('#gT', '50'); ok(await page.isVisible('#abManual'), 'above 40 mm needs a price');
+  ok((await page.textContent('#frameHint')).startsWith('The price list goes up to 40 mm height'), await page.textContent('#frameHint'));
   // a typed rate per m² works out the price per piece, and follows the size
-  await page.click('[data-plate="0"]'); await page.fill('#gT', '38'); await page.fill('#gL', '1000'); await page.fill('#gW', '502');
+  await page.fill('#gT', '50');
   ok(await page.isVisible('#abRateWrap'));
   await page.fill('#abRateIn', '9000');
   eq(await page.inputValue('#abPriceIn'), '4518', '0.502 m² × 9000'); eq(await page.textContent('#abAdd'), 'Add 1 to quote, ₹4,518');
