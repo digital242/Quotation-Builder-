@@ -42,14 +42,14 @@ function randomItem() {
     const sec = pick(['35x35x4', '45x45x4', '35x35x4', '50x50x5']), l = pick([1000, 2000, 3000, 6000, 1500]);
     const it = { prod: 'custom', kind: 'angle', name: 'FRP L Angle', sec, l, frame: 'none', load: null, qty: 1 + Math.floor(rnd() * 40), disc: pick([0, 5]),
       price: sec === '50x50x5' ? 1234 : null };
-    const rate = { '35x35x4': 520, '45x45x4': 640 }[sec];
+    const rate = { '35x35x4': 550, '45x45x4': 680 }[sec];
     checks++; if (rate && TD.unitPrice(it) !== Math.round(l / 1000 * rate * 100) / 100) failures.push(`L angle ${sec} ${l}: ${TD.unitPrice(it)}`);
     return it;
   }
   if (rnd() < 0.06) { // listed grating: 30 / 40 mm height, no frame, per m²
     const plate = rnd() < 0.4, h = pick([30, 40]), l = 300 + Math.floor(rnd() * 2130), w = 300 + Math.floor(rnd() * 700);
     const it = { prod: 'custom', kind: 'grating', name: 'FRP Grating', l, w, h, plate, frame: 'none', load: pick([null, 1, 2]), price: null, qty: 1 + Math.floor(rnd() * 50), disc: pick([0, 10]) };
-    const rate = (plate ? { 30: 11030, 40: 13000 } : { 30: 7995, 40: 9950 })[h];
+    const rate = (plate ? { 30: 11690, 40: 13780 } : { 30: 8475, 40: 10545 })[h];
     checks++; if (TD.unitPrice(it) !== Math.round(l * w / 1e6 * rate * 100) / 100 + (it.region === 'mumbai' ? 100 : 200)) failures.push(`grating ${l}x${w}x${h} ${plate}: ${TD.unitPrice(it)}`);
     return it;
   }

@@ -61,7 +61,7 @@ await test('Excel BOQ: products found with the right quantities, then added at l
   await page.press('#quick', 'Enter');
   const M = await page.evaluate(() => window.__tdApp.model());
   const items = M.groups.flatMap(g => g.items.map(i => [g.key, i.src.id, i.qty, i.price]));
-  eq(JSON.stringify(items), JSON.stringify([['solid|frp', 's600', 14, 20155], ['gully|without', 'r335x930', 6, 12265], ['aw|frp', 's750', 3, 28530], ['fuel|frp', 's900cic', 2, 76505]]),
+  eq(JSON.stringify(items), JSON.stringify([['solid|frp', 's600', 14, 21365], ['gully|without', 'r335x930', 6, 12265], ['aw|frp', 's750', 3, 30245], ['fuel|frp', 's900cic', 2, 81095]]),
     'the repeated 600x600 row adds up to 14; every price is from the price list');
   eq(page.errors.length, 0, page.errors.join());
   await ctx.close();
