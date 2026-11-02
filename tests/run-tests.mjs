@@ -51,9 +51,9 @@ const FOUR = [
 await test('1. four pasted lines add 4 items at the right prices', () => {
   const rs = FOUR.map(l => TD.parseLine(l));
   rs.forEach((r, i) => ok(r.ok, 'line ' + (i + 1) + ' failed: ' + r.error));
-  // price lists w.e.f. 28.10.2026 (gully: 05.10.2026)
+  // price lists w.e.f. 28.10.2026
   const exp = [['solid', 's600', 2, 'frp', 4, 13485, 53940], ['solid', 's1000', 4, 'frp', 2, 75490, 150980],
-    ['gully', 'r335x930', 1, 'without', 2, 4330, 8660], ['recess', 'r900x600', 1, 'frp', 4, 19750, 79000]];
+    ['gully', 'r335x930', 1, 'without', 2, 4590, 9180], ['recess', 'r900x600', 1, 'frp', 4, 19750, 79000]];
   rs.forEach((r, i) => {
     const [prod, id, load, frame, qty, price, amt] = exp[i];
     eq(r.item.prod, prod); eq(r.item.id, id); eq(r.item.load, load); eq(r.item.frame, frame); eq(r.item.qty, qty);
@@ -61,7 +61,7 @@ await test('1. four pasted lines add 4 items at the right prices', () => {
   });
   eq(TD.describeParsed(rs[0]), 'Solid Top MHC, 600 × 600 mm, B125 — 4 nos × ₹13,485 = ₹53,940');
   const t = TD.totals(rs.map(r => r.item), 0, true);
-  eq(TD.rupees2(t.sub), '₹2,92,580.00'); eq(TD.rupees2(t.gst), '₹52,664.40'); eq(TD.rupees2(t.grand), '₹3,45,244.40');
+  eq(TD.rupees2(t.sub), '₹2,93,100.00'); eq(TD.rupees2(t.gst), '₹52,758.00'); eq(TD.rupees2(t.grand), '₹3,45,858.00');
   eq(TD.rupees(rs[1].amount), '₹1,50,980');
 });
 await test('2. air water tight 750x750 c250 3 nos → 3 × ₹30,245 = ₹90,735', () => {
@@ -76,16 +76,16 @@ await test('4. recess 600x600 e600 → on-request error', () => {
   const r = TD.parseLine('recess 600x600 e600 qty 1');
   ok(!r.ok); eq(r.error, "E600 is on request for this size, so it can't be priced here.");
 });
-await test('5. gully with frame → ₹7,520 in its own WITH FRAME group', () => {
+await test('5. gully with frame → ₹7,975 in its own WITH FRAME group', () => {
   const r = TD.parseLine('water gully 395x990 5 ton with frame qty 2');
-  ok(r.ok, r.error); eq(r.item.frame, 'with'); eq(r.price, 7520); eq(r.item.qty, 2);
+  ok(r.ok, r.error); eq(r.item.frame, 'with'); eq(r.price, 7975); eq(r.item.qty, 2);
   const items = [];
   addAll(items, ['Water gully cover 395x990 5 tons quantity 2', 'water gully 395x990 5 ton with frame qty 2']);
   const M = TD.buildModel(items, FIELDS, 0, true);
   eq(M.groups.length, 2);
   eq(M.groups[0].title, '‘THERMODRAIN’ FRP WATER GULLY COVER WITHOUT FRAME (with 2 side support & inbuilt beam design)');
   eq(M.groups[1].title, '‘THERMODRAIN’ FRP WATER GULLY COVER WITH FRAME');
-  eq(M.groups[1].items[0].price, 7520);
+  eq(M.groups[1].items[0].price, 7975);
   eq(M.sizeHeader, 'SIZE', 'out-to-out and clear-opening sizes mixed');
   eq(M.groups[0].items[0].wording, '395mm W X 990mm L (out to out)');
   eq(M.groups[1].items[0].wording, '335mm X 930mm', 'with a frame: the clear opening');
@@ -157,9 +157,9 @@ await test('price data is untouched (spot checks + null = on request)', () => {
   eq(TD.priceOf('aw', 's1500', 5), 316190);
   eq(TD.priceOf('recess', 's1500', 5), null);
   eq(TD.priceOf('solid', 's900t', 1), null);
-  eq(TD.priceOf('gully', 'c600', 0, 'with'), 8545);
-  eq(TD.priceOf('gully', 'c600', 0, 'without'), 7420);
-  eq(TD.priceOf('gully', 's900', 4, 'without'), 43310); eq(TD.priceOf('gully', 's900', 4, 'with'), 43115); // as printed
+  eq(TD.priceOf('gully', 'c600', 0, 'with'), 9060);
+  eq(TD.priceOf('gully', 'c600', 0, 'without'), 7870);
+  eq(TD.priceOf('gully', 's900', 4, 'without'), 45910); eq(TD.priceOf('gully', 's900', 4, 'with'), 45705); // as printed
   eq(TD.priceOf('recess', 's1500', 4), 263440); eq(TD.priceOf('hinged', 's600', 5), 37525); eq(TD.priceOf('tank', 'c750', 0), 7540);
   eq(TD.priceOf('tank', 's750', 3), 8225);
 });
@@ -271,21 +271,21 @@ await test('GST and USD never mix: ₹ + GST, ₹ GST extra, or US$ export witho
   const G = TD.buildModel(items, { ...FIELDS, usdRate: '88.5' }, 'gst');
   eq(G.cur, 'INR'); ok(!G.totalRows.some(r => /US\$|USD/.test(r.label)), 'no USD in a GST quotation');
   ok(!TD.whatsappText(G).includes('US$'), 'no USD in the GST WhatsApp text');
-  near(G.totals.grand, 345244.4);
+  near(G.totals.grand, 345858);
   const U = TD.buildModel(items, { ...FIELDS, usdRate: '88.5' }, 'usd');
   eq(U.cur, 'USD'); eq(U.totals.gst, 0); eq(U.totals.gstOn, false);
-  eq(U.groups.map(g => g.items.map(i => i.price).join('/')).join(' | '), '152.37/852.99 | 48.93 | 223.16');
-  near(U.totals.sub, 3305.96); near(U.totals.grand, 3305.96);
+  eq(U.groups.map(g => g.items.map(i => i.price).join('/')).join(' | '), '152.37/852.99 | 51.86 | 223.16');
+  near(U.totals.sub, 3311.82); near(U.totals.grand, 3311.82);
   ok(!U.totalRows.some(r => /GST/.test(r.label)), 'no GST rows in an export quotation');
   eq(U.totalRows[U.totalRows.length - 1].label, 'TOTAL (US$)');
   eq(U.priceHdr, 'PRICE /PC (US$)'); eq(U.totalHdr, 'TOTAL PRICE (US$)');
   eq(U.terms[0][1], 'Not applicable (export order, prices in US$)');
   const wa = TD.whatsappText(U);
-  ok(wa.includes('*Total in US$ (export, no GST): US$ 3,305.96*') && !wa.includes('₹'), wa);
+  ok(wa.includes('*Total in US$ (export, no GST): US$ 3,311.82*') && !wa.includes('₹'), wa);
   eq(TD.buildModel(items, FIELDS, 'usd').usdMissing, true);
   eq(TD.usd2(3560.27), 'US$ 3,560.27');
   const N = TD.buildModel(items, { ...FIELDS, usdRate: '88.5' }, 'nogst');
-  eq(N.cur, 'INR'); eq(N.terms[0][1], '18% Extra'); near(N.totals.grand, 292580);
+  eq(N.cur, 'INR'); eq(N.terms[0][1], '18% Extra'); near(N.totals.grand, 293100);
 });
 
 await test('multi-cover manhole covers are fully custom (size, covers, frame, load, price)', () => {
@@ -391,7 +391,7 @@ await test('8. 48% discount: net rate per item, GST on the net total, formulas a
   const H = r => ws.getCell('H' + r).value;
   // independent net total: each list price less 48%, to the paisa, times qty
   let net = 0; for (const ln of FOUR) { const it = TD.parseLine(ln).item; net += Math.round(TD.unitPrice(it) * 52) / 100 * it.qty; }
-  ok(net < 292580 * 0.53 && net > 292580 * 0.51, 'net about 52% of 292580');
+  ok(net < 293100 * 0.53 && net > 293100 * 0.51, 'net about 52% of 293100');
   eq(H(at.total).formula, `SUM(H${f}:H${l})`); near(H(at.total).result, net);
   eq(H(at.gst).formula, `H${at.total}*18%`); near(H(at.gst).result, Math.round(net * 18) / 100);
   eq(H(at.grand).formula, `H${at.total}+H${at.gst}`); near(H(at.grand).result, Math.round(net * 118) / 100);
@@ -610,7 +610,7 @@ await test('Excel: US$ export quotation has US$ prices, no GST rows, and says GS
   ok(find('PRICE /PC (US$)') && find('TOTAL PRICE (US$)'), 'US$ headers');
   eq(Object.keys(at).join(','), 'total');
   eq(ws.getCell('E' + at.total).value, 'TOTAL (US$)'); ok(ws.getCell('E' + at.total).font.bold);
-  near(ws.getCell('H' + at.total).value.result, 3305.96 + 508.47 * 2);
+  near(ws.getCell('H' + at.total).value.result, 3311.82 + 508.47 * 2);
   eq(ws.getCell('G' + (x.firstItemRow + 2)).numFmt, '#,##0.00');
   ok(find(': Not applicable (export order, prices in US$)'), 'GST term');
   let gstRows = 0; ws.eachRow(row => { if (/GST @|INCL\. 18% GST/.test(String(row.getCell(5).value))) gstRows++; }); eq(gstRows, 0);

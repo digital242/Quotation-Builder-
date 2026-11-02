@@ -57,12 +57,12 @@ await test('UI 1: paste four lines + Enter → 4 items and correct totals', asyn
   eq(await page.locator('#sumItems .item').count(), 4);
   eq(await page.inputValue('#quick'), '');
   const tot = await page.textContent('#totals');
-  ok(tot.includes('₹2,92,580.00'), 'subtotal ' + tot); ok(tot.includes('₹52,664.40'), 'gst');
-  eq(await page.textContent('#grandVal'), '₹3,45,244.40');
+  ok(tot.includes('₹2,93,100.00'), 'subtotal ' + tot); ok(tot.includes('₹52,758.00'), 'gst');
+  eq(await page.textContent('#grandVal'), '₹3,45,858.00');
   eq(await page.textContent('#sumCount'), '4 items');
   eq(await lastToast(page), '4 items added.');
   const amts = await page.locator('#sumItems .amt').allTextContents();
-  eq(amts.join('|'), '₹53,940|₹1,50,980|₹8,660|₹79,000');
+  eq(amts.join('|'), '₹53,940|₹1,50,980|₹9,180|₹79,000');
   eq(page.errors.length, 0, page.errors.join());
   await page.screenshot({ path: path.join(OUT, 'ui-desktop.png'), fullPage: true });
   await ctx.close();
@@ -95,7 +95,7 @@ await test('UI 5-7: Shift+Enter newline, gully with frame group, tank 500 kg, me
   await typeLines(page, ['tank 600 qty 3']); await page.click('#quickAdd');
   eq(await page.locator('#sumItems .item').count(), 2);
   const txt = await page.textContent('#sumItems');
-  ok(txt.includes('Water Gully Cover with frame') && txt.includes('× ₹7,520'), 'gully with frame');
+  ok(txt.includes('Water Gully Cover with frame') && txt.includes('× ₹7,975'), 'gully with frame');
   ok(txt.includes('Ø 600 mm, 500 kg') && txt.includes('× ₹5,925'), 'tank');
   eq(await page.inputValue('#sumItems .item:nth-child(2) input[data-act=qty]'), '6');
   const M = await page.evaluate(() => window.__tdApp.model());
@@ -170,7 +170,7 @@ await test('UI 8: download .xlsx (48% discount), filename, formulas, serial +1',
   const ws = wb.getWorksheet('Quotation');
   const labels = []; ws.eachRow((row, rn) => { const v = row.getCell(5).value; if (typeof v === 'string' && /TOTAL|Discount|GST @/.test(v)) labels.push([v, row.getCell(8).value, rn]); });
   eq(labels.map(l => l[0]).join(' | '), 'TOTAL | PLUS GST @ 18% | TOTAL', 'lines at net rate, GST on the net total');
-  eq(labels[0][1].result, 152141.6); eq(labels[2][1].result, 179527.09);
+  eq(labels[0][1].result, 152412); eq(labels[2][1].result, 179846.16);
   const vals = []; ws.eachRow(row => row.eachCell(c => vals.push(c.value)));
   ok(vals.includes('NET RATE /PC (RS)') && vals.includes(7012.2), 'net rate column (13485 less 48%)');
   eq(await page.inputValue('#f_serial'), '26');
@@ -198,10 +198,10 @@ await test('UI: preview dialog, WhatsApp text, persistence, new quotation keeps 
   await page.click('#btnPreview');
   ok(await page.isVisible('#pvDlg'));
   const paper = await page.textContent('#paper');
-  ok(paper.includes('PLUS GST @ 18%') && paper.includes('3,45,244.40') && paper.includes('KIND ATTN'));
+  ok(paper.includes('PLUS GST @ 18%') && paper.includes('3,45,858.00') && paper.includes('KIND ATTN'));
   await page.click('#pvClose');
   const wa = await page.evaluate(() => TD.whatsappText(window.__tdApp.model()));
-  ok(wa.includes('*Grand total (incl. 18% GST): ₹3,45,244.40*'), wa);
+  ok(wa.includes('*Grand total (incl. 18% GST): ₹3,45,858.00*'), wa);
   ok(wa.includes('*‘THERMODRAIN’ FRP MANHOLE COVERS WITH FRAME*'));
   await page.click('#btnCopy');
   await page.waitForTimeout(150);
@@ -646,7 +646,7 @@ await test('UI 11a: 360 px wide, no horizontal scroll (empty, with items, picker
   await page.click('#sumItems details summary');
   eq(await sw(), 360, 'with items');
   ok(await page.isVisible('#mbar'), 'mobile bar visible');
-  eq(await page.textContent('#mTotal'), '₹3,45,244.40');
+  eq(await page.textContent('#mTotal'), '₹3,45,858.00');
   await page.screenshot({ path: path.join(OUT, 'ui-360.png'), fullPage: true });
   await page.click('#btnPreview'); eq(await sw(), 360, 'preview open');
   await page.screenshot({ path: path.join(OUT, 'ui-360-preview.png') });

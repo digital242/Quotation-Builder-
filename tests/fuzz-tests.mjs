@@ -113,7 +113,7 @@ for (let q = 0; q < N; q++) {
   let sub = 0, disc = 0;
   for (const it of items) {
     const p = mode === 'usd' ? r2(TD.unitPrice(it) / rate) : TD.unitPrice(it);
-    const net = it.disc > 0 ? Math.round(p * (100 - it.disc)) / 100 : p; // net rate per piece, to the paisa
+    const net = it.disc > 0 ? Math.round(Math.round(p * 100) * (100 - it.disc) / 100) / 100 : p; // net rate per piece, to the paisa (in whole paise)
     sub += p * it.qty; disc += (p - net) * it.qty;
   }
   const base = sub - disc, gst = mode === 'gst' ? base * 0.18 : 0, grand = base + gst;
