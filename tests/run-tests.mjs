@@ -478,18 +478,18 @@ await test('drain channel and grating: typed lines, checklist, wording and Excel
   eq(TD.parseLine('grating cover 600x600 b125 qty 2').item.prod, 'gully', 'grating cover stays a gully cover');
   ok(/price/.test(TD.parseLine('drain channel 1000x300x300 qty 2').error), 'price needed');
   ok(/width x height x length/.test(TD.parseLine('drain channel 1000x300 price 500 qty 2').error), 'three sizes needed');
-  // drain channel price list w.e.f. 05.10.2026
+  // drain channel price list w.e.f. 28.10.2026
   const dc = l => { const r = TD.parseLine(l); ok(r.ok, l + ': ' + r.error); return r; };
-  let d = dc('drain channel 326x300x1000 D400 qty 10'); eq(d.price, 19035); eq(TD.isManual(d.item), false);
+  let d = dc('drain channel 326x300x1000 D400 qty 10'); eq(d.price, 20180); eq(TD.isManual(d.item), false);
   eq(TD.defaultWording(d.item), '326mm (W) X 300mm (Ht) X 1000mm (Lt), with FRP grating');
-  eq(dc('drain channel 1000x326x300 d400 qty 1').price, 19035, 'length typed first');
-  eq(dc('drain channel 128x155x1000 c250 qty 5').price, 9045); eq(dc('drain channel 167x155x1000 2.5 ton qty 1').price, 8210);
-  eq(dc('drain channel 525x300x1000 5 ton qty 1').price, 16300);
+  eq(dc('drain channel 1000x326x300 d400 qty 1').price, 20180, 'length typed first');
+  eq(dc('drain channel 128x155x1000 c250 qty 5').price, 9590); eq(dc('drain channel 167x155x1000 2.5 ton qty 1').price, 8705);
+  eq(dc('drain channel 525x300x1000 5 ton qty 1').price, 17280);
   ok(/not priced for C250/.test(TD.parseLine('drain channel 525x300x1000 c250 qty 1').error));
-  d = dc('drain channel with slit cover 155x100x950 2.5 ton qty 3'); eq(d.price, 9645); eq(d.item.grate, 'slit');
+  d = dc('drain channel with slit cover 155x100x950 2.5 ton qty 3'); eq(d.price, 10225); eq(d.item.grate, 'slit');
   eq(TD.defaultWording(d.item), '155mm (W) X 100mm (Ht) X 950mm (Lt), with slit cover');
   eq(TD.groupTitle(TD.groupKey(d.item)), '‘THERMODRAIN’ FRP DRAIN CHANNEL WITH SLIT COVER');
-  eq(dc('slit cover drain channel 350x100x1000 2.5 t qty 1').price, 14875);
+  eq(dc('slit cover drain channel 350x100x1000 2.5 t qty 1').price, 15770);
   ok(/load class: 2.5 T\./.test(TD.parseLine('drain channel slit cover 155x155x950 qty 2').error), TD.parseLine('drain channel slit cover 155x155x950 qty 2').error);
   eq(TD.checkLine('drain channel 326x300x1000 D400 qty 10').state, 'ready', 'no price needed for a listed channel');
   eq(TD.checkLine('drain channel 1000x300x300 price 8500 qty 10').state, 'ready');

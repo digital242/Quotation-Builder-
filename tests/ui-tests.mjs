@@ -500,10 +500,10 @@ await test('UI: drain channel and grating from the picker', async () => {
   await page.click('[data-prod="custom"]');
   await page.click('[data-kind="channel"]');
   ok(await page.isVisible('#channelWrap')); ok(await page.isHidden('#chamberWrap')); ok(await page.isHidden('#frameWrap'), 'no frame choice for a channel');
-  // a listed size is priced from the drain channel price list (w.e.f. 05.10.2026)
-  ok(await page.isHidden('#abManual')); eq(await page.textContent('#abAdd'), 'Add 1 to quote, ₹19,035', '326 W × 300 Ht × 1000 Lt, D400');
-  await page.click('[data-chsize="128x155x1000"]'); await page.click('[data-load="3"]'); eq(await page.textContent('#abAdd'), 'Add 1 to quote, ₹9,045');
-  await page.click('[data-grate="slit"]'); ok((await page.textContent('#chRate')).includes('= ₹9,645 per piece'), await page.textContent('#chRate'));
+  // a listed size is priced from the drain channel price list (w.e.f. 28.10.2026)
+  ok(await page.isHidden('#abManual')); eq(await page.textContent('#abAdd'), 'Add 1 to quote, ₹20,180', '326 W × 300 Ht × 1000 Lt, D400');
+  await page.click('[data-chsize="128x155x1000"]'); await page.click('[data-load="3"]'); eq(await page.textContent('#abAdd'), 'Add 1 to quote, ₹9,590');
+  await page.click('[data-grate="slit"]'); ok((await page.textContent('#chRate')).includes('= ₹10,225 per piece'), await page.textContent('#chRate'));
   await page.click('[data-grate="with"]');
   // any other size needs a typed price
   await page.fill('#chL', '1000'); await page.fill('#chW', '300'); await page.fill('#chH', '');

@@ -380,7 +380,7 @@ dialog.pv::backdrop{background:rgba(27,42,74,.55)}
     <div class="plate" id="logoPlate"><span class="wordmark">THERMODRAIN<sup>®</sup></span></div>
     <div class="titles">
       <h1>Quotation builder</h1>
-      <p>Price lists w.e.f. 28 Oct 2026 (drain channel: 05 Oct 2026), ex-works Panvel</p>
+      <p>Price lists w.e.f. 28 Oct 2026, ex-works Panvel</p>
     </div>
     <div class="ourref" aria-live="polite"><span>Our ref</span><strong id="hdrRef">—</strong></div>
   </div>
@@ -690,7 +690,7 @@ var TD = (function () {
 
 /* ---- Authoritative price data. Do not edit.
    Solid top, hinged, water tank, air & water tight, recess, fuel station (petrol pump), gratings & L angle,
-   water gully covers: price lists w.e.f. 28.10.2026. Drain channels: w.e.f. 05.10.2026. ---- */
+   water gully covers, drain channels: price lists w.e.f. 28.10.2026. ---- */
 const LOADS=[
   {k:'P',name:'Pedestrian',cap:'2.5 T'},
   {k:'LV',name:'Light vehicle',cap:'5 T'},
@@ -978,19 +978,19 @@ function finishText(it){ return it.finish==='double' ? 'two-sided finish' : 'sin
 /* Also 'channel' (drain channel: L x W x D, with or without grating) and 'grating' (L x W, optional thickness). */
 const CUSTOM_KINDS=['chamber','multi','channel','grating','angle'];
 const CUSTOM_DEFAULT_NAME={chamber:'FRP Chamber',multi:'FRP/GRP Multiple Manhole Cover',channel:'FRP Drain Channel',grating:'FRP Grating',angle:'FRP L Angle'};
-/* Drain channels, price list w.e.f. 05.10.2026 (excl. GST), out-to-out W x Ht x Lt in mm, by load index
+/* Drain channels, price list w.e.f. 28.10.2026 (excl. GST), out-to-out W x Ht x Lt in mm, by load index
    (2.5T, 5T, B125, C250, D400, E600). null = not listed (on request). Never change these. */
 const DRAIN_CHANNEL={
   grate:{ // drain channel with grating
-    '128x155x1000':[7620,7855,8570,9045,9400,null],
-    '167x155x1000':[8210,8455,9285,9880,10590,null],
-    '326x300x1000':[13330,14755,16660,18090,19035,null],
-    '525x300x1000':[15175,16300,null,null,null,null]},
+    '128x155x1000':[8080,8330,9085,9590,9965,null],
+    '167x155x1000':[8705,8965,9845,10475,11230,null],
+    '326x300x1000':[14130,15645,17660,19180,20180,null],
+    '525x300x1000':[16090,17280,null,null,null,null]},
   slit:{ // drain channel with slit cover
-    '155x100x950':[9645,null,null,null,null,null],
-    '155x155x950':[10470,null,null,null,null,null],
-    '170x100x1000':[10835,null,null,null,null,null],
-    '350x100x1000':[14875,null,null,null,null,null]}
+    '155x100x950':[10225,null,null,null,null,null],
+    '155x155x950':[11100,null,null,null,null,null],
+    '170x100x1000':[11490,null,null,null,null,null],
+    '350x100x1000':[15770,null,null,null,null,null]}
 };
 function channelKey(it){ return (+it.w||0)+'x'+(+it.h||0)+'x'+(+it.l||0); }
 function channelRow(it){ const t=it.grate==='slit'?'slit':it.grate==='without'?null:'grate'; return t ? DRAIN_CHANNEL[t][channelKey(it)]||null : null; }
