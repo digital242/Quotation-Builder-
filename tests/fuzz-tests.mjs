@@ -107,7 +107,8 @@ for (let q = 0; q < N; q++) {
   const n = 1 + Math.floor(rnd() * 9);
   const items = Array.from({ length: n }, randomItem);
   const mode = pick(['gst', 'gst', 'nogst', 'usd']);
-  const M = TD.buildModel(items, FIELDS, mode);
+  const show = pick(['net', 'mrp']); // quotation shows net rates or MRP with a discount row
+  const M = TD.buildModel(items, { ...FIELDS, priceShow: show }, mode);
   const rate = 88.37;
   // independent totals
   let sub = 0, disc = 0;
@@ -120,7 +121,10 @@ for (let q = 0; q < N; q++) {
   checks++; if (!near(M.totals.sub, sub)) fail(q, `sub ${M.totals.sub} != ${sub}`);
   checks++; if (!near(M.totals.grand, grand)) fail(q, `grand ${M.totals.grand} != ${grand}`);
   checks++; if (!near(M.totals.base, base)) fail(q, `net total ${M.totals.base} != ${base}`);
-  checks++; if (M.totalRows.some(r => /discount/i.test(r.label))) fail(q, 'discount row in the quotation');
+  const hasDisc = items.some(it => it.disc > 0);
+  checks++; if (show === 'net' && M.totalRows.some(r => /discount/i.test(r.label))) fail(q, 'discount row in a net-rate quotation');
+  checks++; if (show === 'mrp' && hasDisc !== M.totalRows.some(r => /discount/i.test(r.label))) fail(q, 'MRP quotation: discount row missing or extra');
+  if (show === 'mrp') { checks++; if (!near(M.totalRows[0].value, sub)) fail(q, `MRP TOTAL ${M.totalRows[0].value} != list total ${sub}`); }
   checks++; if (mode !== 'gst' && M.totals.gst !== 0) fail(q, 'GST charged outside GST mode');
   checks++; if (mode === 'gst' && M.totalRows.some(r => /US\$|USD/.test(r.label))) fail(q, 'USD shown in GST mode');
   checks++; if (mode === 'usd' && M.totalRows.some(r => /GST/.test(r.label))) fail(q, 'GST row in USD mode');

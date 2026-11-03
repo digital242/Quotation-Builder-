@@ -603,6 +603,27 @@ await test('gratings per m² and L angle per metre, from the price list w.e.f. 1
   ok(find('‘THERMODRAIN’ FRP ‘L’ ANGLE'), 'L angle heading'); ok(find('35mm X 35mm X 4mm thk, 3000mm long'));
   near(x.ws.getCell('H' + x.totalRowsAt.total).value.result, 6342.68 * 3 + 16500);
 });
+await test('net rate or MRP view: same grand total; MRP shows list prices and a discount row', async () => {
+  const lines = ['solid 600x600 b125 qty 4 10% disc', 'recess 900x600 5 ton qty 4 20% disc', 'chamber 1000x1000x600 b125 price 45000 qty 2'];
+  const items = []; addAll(items, lines);
+  const N = TD.buildModel(items, { ...FIELDS, priceShow: 'net' }, 'gst'), R = TD.buildModel(items, { ...FIELDS, priceShow: 'mrp' }, 'gst');
+  eq(N.priceHdr, 'NET RATE /PC (RS)'); eq(R.priceHdr, 'PRICE /PC (RS)');
+  eq(R.groups[0].items[0].price, 13485); eq(R.groups[0].items[0].amount, 53940); eq(N.groups[0].items[0].price, 12136.5);
+  eq(R.totalRows.map(r => r.label).join(' | '), 'TOTAL | Less Discount (avg. 9.51%) | TOTAL | PLUS GST @ 18% | TOTAL');
+  near(R.totalRows[0].value, 53940 + 79000 + 90000); near(R.totalRows[1].value, 5394 + 15800); near(R.totalRows[2].value, 201746);
+  near(R.totals.grand, N.totals.grand); near(R.totals.grand, 238060.28);
+  const same = items.map(i => ({ ...i, disc: 48 }));
+  eq(TD.buildModel(same, { ...FIELDS, priceShow: 'mrp' }, 'gst').totalRows[1].label, 'Less Discount @48%');
+  eq(TD.buildModel([TD.parseLine('solid 600x600 b125 qty 4').item], { ...FIELDS, priceShow: 'mrp' }, 'gst').totalRows.length, 3, 'no discount: no discount rows');
+  // Excel: discount and after-discount rows are formulas that recalculate
+  const M = R; const { wb, totalRowsAt: at } = TD.buildWorkbook(ExcelJS, M, {}); const ws = wb.getWorksheet('Quotation');
+  eq(ws.getCell('E' + at.disc).value, 'Less Discount (avg. 9.51%)'); ok(ws.getCell('E' + at.after).font.bold);
+  ok(/^H\d+\*10%\+H\d+\*20%$/.test(ws.getCell('H' + at.disc).value.formula), ws.getCell('H' + at.disc).value.formula);
+  eq(ws.getCell('H' + at.after).value.formula, 'H' + at.total + '-H' + at.disc);
+  eq(ws.getCell('H' + at.gst).value.formula, 'H' + at.after + '*18%');
+  let hdr = null; ws.eachRow(row => row.eachCell(c => { if (c.value === 'PRICE /PC (RS)') hdr = c; })); ok(hdr, 'MRP header');
+  ok(TD.whatsappText(M).includes('(less 10%)'), 'WhatsApp shows the discount on MRP lines');
+});
 await test('Excel: US$ export quotation has US$ prices, no GST rows, and says GST not applicable', async () => {
   const x = await makeXlsx('QTN_usd.xlsx', [...FOUR, 'chamber 1000x1000x600 two sided b125 price 45000 qty 2'], undefined, 'usd', { ...FIELDS, usdRate: '88.5' });
   const ws = x.ws, at = x.totalRowsAt;

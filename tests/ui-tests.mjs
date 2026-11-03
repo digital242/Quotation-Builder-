@@ -385,6 +385,30 @@ await test('UI: per-item discounts, average discount, apply to all; US$ export m
   await ctx.close();
 });
 
+await test('UI: Net rate / MRP switch changes the quotation, not the total', async () => {
+  const { ctx, page } = await newPage();
+  await typeLines(page, ['solid top 600x600 b125 qty 4']); await page.keyboard.press('Enter');
+  await page.fill('#sumItems .item:nth-child(1) input[data-act=disc]', '10');
+  eq(await page.getAttribute('#showToggle', 'aria-checked'), 'false', 'net rate by default');
+  const grand1 = await page.textContent('#grandVal');
+  let M = await page.evaluate(() => window.__tdApp.model());
+  eq(M.priceHdr, 'NET RATE /PC (RS)'); eq(M.groups[0].items[0].price, 12136.5);
+  await page.click('#showToggle');
+  eq(await page.getAttribute('#showToggle', 'aria-checked'), 'true');
+  ok((await page.textContent('#showHint')).startsWith('Each product at its list price (MRP)'));
+  M = await page.evaluate(() => window.__tdApp.model());
+  eq(M.priceHdr, 'PRICE /PC (RS)'); eq(M.groups[0].items[0].price, 13485);
+  eq(M.totalRows.map(r => r.label).join(' | '), 'TOTAL | Less Discount @10% | TOTAL | PLUS GST @ 18% | TOTAL');
+  eq(await page.textContent('#grandVal'), grand1, 'same grand total');
+  await page.fill('#f_company', 'Acme'); await page.keyboard.press('Escape');
+  await page.click('#btnPreview'); const paper = await page.textContent('#paper');
+  ok(paper.includes('Less Discount @10%') && paper.includes('13,485.00'), 'preview shows MRP and the discount'); await page.click('#pvClose');
+  await page.reload(); await page.waitForFunction(() => !!window.__tdApp);
+  eq(await page.getAttribute('#showToggle', 'aria-checked'), 'true', 'choice is remembered');
+  eq(page.errors.length, 0, page.errors.join());
+  await ctx.close();
+});
+
 await test('UI: Export client data (Excel) lists every quoted product for every client', async () => {
   const { ctx, page } = await newPage();
   await page.click('#custExport');

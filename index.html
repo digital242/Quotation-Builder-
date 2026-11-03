@@ -112,6 +112,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue)}
 .adjust .fld .btn.sm{min-height:38px;padding:6px 12px}
 .mode{border:1px solid var(--border);border-radius:12px;padding:10px 12px 12px;margin:4px 0 12px}
 .mode-label{display:block;font-size:13px;font-weight:700;margin-bottom:8px}
+.mode-hint + .mode-label{margin-top:14px;padding-top:12px;border-top:1px solid var(--border)}
 .ctoggle{position:relative;display:grid;grid-template-columns:1fr 1fr;width:100%;padding:4px;border:1px solid var(--border);border-radius:999px;background:var(--tint);min-height:46px}
 .ctoggle::before{content:"";position:absolute;top:4px;bottom:4px;left:4px;width:calc(50% - 4px);border-radius:999px;background:var(--blue);transition:transform .2s ease}
 .ctoggle[aria-checked="true"]::before{transform:translateX(100%)}
@@ -635,6 +636,12 @@ dialog.pv::backdrop{background:rgba(27,42,74,.55)}
         </button>
         <div class="fld rate" id="rateFld" hidden><label for="f_usdRate">Exchange rate, ₹ per US$</label><input id="f_usdRate" data-f="usdRate" type="number" min="0" step="any" inputmode="decimal" placeholder="e.g. 88.50"></div>
         <p class="mode-hint" id="modeHint"></p>
+        <span class="mode-label" id="lblShow">Price shown in the quotation</span>
+        <button type="button" class="ctoggle" id="showToggle" role="switch" aria-checked="false" aria-describedby="showHint">
+          <span class="sr-only">Show MRP (list price) with the discount in the totals, instead of the net rate</span>
+          <span class="opt opt-gst" aria-hidden="true">Net rate</span><span class="opt opt-usd" aria-hidden="true">MRP + discount</span>
+        </button>
+        <p class="mode-hint" id="showHint"></p>
       </div>
       <div class="totals" id="totals"></div>
       <div class="grand"><span id="grandLabel">Grand total, incl. GST</span><strong id="grandVal">₹0.00</strong></div>
@@ -1574,6 +1581,7 @@ function usdRateOf(f){ const r=parseFloat(f.usdRate); return r>0 ? Math.round(r*
 function buildModel(items,f,a,b){
   const two=b===undefined, dAll=two?0:a, mode=modeOf(two?a:b);
   f=Object.assign({},DEFAULT_FIELDS,f||{});
+  const showMrp = f.priceShow==='mrp';
   const rate=usdRateOf(f);
   const qdate=f.qdate||todayISO();
   const groups=[], byKey={};
@@ -1587,15 +1595,22 @@ function buildModel(items,f,a,b){
   for(const g of groups){ if(g.note && seenNotes.has(g.note)) g.note=null; else if(g.note) seenNotes.add(g.note); g.noteParts=noteParts(g.note); }
   for(const g of groups){
     for(const it of items){ if(groupKey(it)!==g.key) continue;
-      const list=linePrice(it,mode,rate), disc=itemDisc(it,dAll), price=netPrice(list,disc);
-      g.items.push({sr:++sr,wording:wordingOf(it),load:itemLoadPrint(it),qty:it.qty,list,price,amount:round2(price*it.qty),disc,src:it});
+      const list=linePrice(it,mode,rate), disc=itemDisc(it,dAll), net=netPrice(list,disc);
+      // MRP view prints the list price (discount shown in the totals); net view prints the rate after discount
+      const price = showMrp ? list : net;
+      g.items.push({sr:++sr,wording:wordingOf(it),load:itemLoadPrint(it),qty:it.qty,list,net,price,amount:round2(price*it.qty),disc,src:it});
     }
   }
   const nG=items.filter(i=>i.prod==='gully' && normFrame('gully',i.frame)!=='with').length; // sized out to out
   const sizeHeader = nG===items.length && nG>0 ? 'OUT TO OUT SIZE' : (nG===0 ? 'CLEAR OPENING SIZE' : 'SIZE');
   const t=totals(items,dAll,mode,rate);
-  // prices are net rates (after each item's discount), so GST is worked out on this total
-  const totalRows=[{key:'total',label:'TOTAL',value:t.base,bold:true}];
+  // Net view: lines are at net rate, so the first TOTAL is already after discount.
+  // MRP view: lines at list price, then Less Discount and the TOTAL after discount. GST is on the total after discount either way.
+  const totalRows = showMrp && t.hasDisc
+    ? [{key:'total',label:'TOTAL',value:t.sub},
+       {key:'disc',label: t.uniformPct!==null ? 'Less Discount @'+pctLabel(t.uniformPct)+'%' : 'Less Discount (avg. '+fmtIN(t.avgPct,2)+'%)',value:t.disc},
+       {key:'after',label:'TOTAL',value:t.base,bold:true}]
+    : [{key:'total',label:'TOTAL',value:t.base,bold:true}];
   if(t.gstOn){ totalRows.push({key:'gst',label:'PLUS GST @ 18%',value:t.gst}); totalRows.push({key:'grand',label:'TOTAL',value:t.grand}); }
   const last=totalRows[totalRows.length-1]; last.bold=true; last.final=true;
   if(mode==='usd') last.label='TOTAL (US$)';
@@ -1615,7 +1630,8 @@ function buildModel(items,f,a,b){
     subject:(String(f.subject||'').trim()||autoSubject(items,f.site)).toUpperCase(),
     intro:introText(f), sizeHeader,
  groups, totals:t, totalRows, pct:t.discountPct, mode, cur, rate:mode==='usd'?rate:null, usdMissing:mode==='usd'&&!rate,
-    priceHdr:(t.hasDisc?'NET RATE /PC':'PRICE /PC')+(cur==='USD'?' (US$)':' (RS)'), totalHdr:cur==='USD'?'TOTAL PRICE (US$)':'TOTAL PRICE (RS)',
+    priceShow: showMrp?'mrp':'net',
+    priceHdr:(t.hasDisc&&!showMrp?'NET RATE /PC':'PRICE /PC')+(cur==='USD'?' (US$)':' (RS)'), totalHdr:cur==='USD'?'TOTAL PRICE (US$)':'TOTAL PRICE (RS)',
     terms:terms.map(([k,v])=>[k,String(v||'').trim()]),
     signedBy:String(f.signedBy||'').trim().toUpperCase(), designation:String(f.designation||'').trim().toUpperCase(),
     signMobile:String(f.signMobile||'').trim(),
@@ -1633,7 +1649,7 @@ function whatsappText(M){
   L.push('Sub: '+M.subject); L.push('');
   for(const g of M.groups){
     L.push('*'+g.title+g.titleTail+'*');
-    for(const r of g.items) L.push(r.sr+'. '+r.wording+', '+r.load+': '+r.qty+' nos × '+moneyShort(r.price,M.cur)+' = '+money(r.amount,M.cur)+(r.disc>0?' (net rate after '+pctLabel(r.disc)+'% discount)':''));
+    for(const r of g.items) L.push(r.sr+'. '+r.wording+', '+r.load+': '+r.qty+' nos × '+moneyShort(r.price,M.cur)+' = '+money(r.amount,M.cur)+(r.disc>0?(M.priceShow==='mrp'?' (less '+pctLabel(r.disc)+'%)':' (net rate after '+pctLabel(r.disc)+'% discount)'):''));
     L.push('');
   }
   for(const r of M.totalRows){
@@ -1769,6 +1785,15 @@ function buildWorkbook(ExcelJS,M,logos){
   for(const t of M.totalRows){
     let formula;
     if(t.key==='total') formula='SUM(H'+first+':H'+lastItem+')';
+    else if(t.key==='disc'){
+      // a formula that gives exactly the discount on the list (each net rate is rounded to the paisa)
+      const rows=M.groups.flatMap(g=>g.items).filter(x=>x.disc>0);
+      const uni=M.totals.uniformPct, perRow=rows.reduce((s,x)=>s+x.amount*x.disc/100,0);
+      formula = uni!==null && Math.abs(M.totals.sub*uni/100-t.value)<0.005 ? 'H'+at.total+'*'+pctLabel(uni)+'%'
+        : Math.abs(perRow-t.value)<0.005 ? rows.map(x=>'H'+x.row+'*'+pctLabel(x.disc)+'%').join('+')
+        : 'H'+at.total+'-'+round2(M.totals.base).toFixed(2);
+    }
+    else if(t.key==='after') formula='H'+at.total+'-H'+at.disc;
     else if(t.key==='gst') formula='H'+(at.after||at.total)+'*18%';
     else if(t.key==='grand') formula='H'+(at.after||at.total)+'+H'+at.gst;
     at[t.key]=r;
@@ -1935,6 +1960,7 @@ const oldDisc=+saved.discount||0; // older versions had one discount for the who
 const Q={
   items:(Array.isArray(saved.items)?saved.items:[]).map(it=>normItem(it,oldDisc)).filter(Boolean).map(it=>Object.assign({uid:uid()},it)),
   mode:saved.mode==='usd'?'usd':'gst', // only two modes: rupees with GST, or US$ export without GST
+  priceShow:saved.priceShow==='mrp'?'mrp':'net', // quotation prints net rates (default) or MRP with a discount row
   draft:typeof saved.draft==='string'?saved.draft:''
 };
 const P=Object.assign({prod:'solid',shape:'Square',id:'s600',frame:'frp',load:2,qty:1,depth:'',price:'',
@@ -1966,7 +1992,7 @@ if(!Array.isArray(savedF.paySlabs) || !savedF.paySlabs.length){
 }
 delete F.transport; delete F.payments;
 const ITEM_KEYS=['prod','kind','covers','id','load','frame','qty','wording','disc','depth','price','name','l','w','h','finish','grate','loadText','plate','sec','region','regionAuto'];
-function saveQuote(){ store.set(K_QUOTE,{items:Q.items.map(it=>{ const o={}; for(const k of ITEM_KEYS) if(it[k]!==undefined) o[k]=it[k]; return o; }),mode:Q.mode,draft:$('#quick').value,picker:P}); }
+function saveQuote(){ store.set(K_QUOTE,{items:Q.items.map(it=>{ const o={}; for(const k of ITEM_KEYS) if(it[k]!==undefined) o[k]=it[k]; return o; }),mode:Q.mode,priceShow:Q.priceShow,draft:$('#quick').value,picker:P}); }
 function saveFields(){ store.set(K_FIELDS,F); }
 
 /* ---------- Toasts ---------- */
@@ -2655,6 +2681,11 @@ function refreshRow(it){
   renderTotals();
 }
 function renderMode(){
+  $('#showToggle').setAttribute('aria-checked',String(Q.priceShow==='mrp'));
+  const anyDisc=Q.items.some(it=>it.disc>0);
+  $('#showHint').textContent = Q.priceShow==='mrp'
+    ? 'Each product at its list price (MRP); the discount is shown in the totals, then GST on the total after discount.'+(anyDisc?'':' No discount yet, so both views look the same.')
+    : 'Each product at its net rate (price after its discount); GST on the total.'+(anyDisc?'':' No discount yet, so both views look the same.');
   $('#modeToggle').setAttribute('aria-checked',String(Q.mode==='usd'));
   $('#rateFld').hidden = Q.mode!=='usd';
   const h=$('#modeHint'), rate=rateNow();
@@ -2731,6 +2762,10 @@ function applyDiscAll(){
 }
 $('#discApply').addEventListener('click',applyDiscAll);
 $('#discount').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); applyDiscAll(); } });
+$('#showToggle').addEventListener('click',()=>{
+  Q.priceShow = Q.priceShow==='mrp' ? 'net' : 'mrp'; saveQuote(); renderSummary();
+  toast(Q.priceShow==='mrp'?'Quotation shows MRP, with the discount in the totals.':'Quotation shows the net rate for each product.');
+});
 $('#modeToggle').addEventListener('click',()=>{
   Q.mode = Q.mode==='usd' ? 'gst' : 'usd'; saveQuote(); renderSummary();
   toast(Q.mode==='gst'?'GST 18% added. Prices in ₹, no USD.':'Export quotation in US$. GST does not apply.');
@@ -2752,7 +2787,7 @@ $('#btnNew').addEventListener('click',()=>{
 $('#mReview').addEventListener('click',()=>{ $('#step3').scrollIntoView({behavior:reduceMotion()?'auto':'smooth',block:'start'}); flashSummary(); });
 
 /* ---------- Model, preview, WhatsApp, download ---------- */
-function model(){ return T.buildModel(Q.items,Object.assign({},F,{qdate:F.qdate||today()}),Q.mode); }
+function model(){ return T.buildModel(Q.items,Object.assign({},F,{qdate:F.qdate||today(),priceShow:Q.priceShow}),Q.mode); }
 function needReady(){
   if(!Q.items.length){ toast('Add at least one item before downloading.',true); quick.focus(); return false; }
   if(!String(F.company||'').trim()){ toast('Enter the customer\'s company name first.',true); const c=$('#f_company'); c.scrollIntoView({block:'center'}); c.focus(); return false; }
