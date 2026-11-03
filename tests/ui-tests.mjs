@@ -604,6 +604,18 @@ await test('UI: grating priced per m² and L angle per metre from the picker', a
   await ctx.close();
 });
 
+await test('UI: multi-cover priced from the solid top list (+10% for 2 covers, +30% for more)', async () => {
+  const { ctx, page } = await newPage();
+  await page.click('[data-prod="custom"]'); await page.click('[data-kind="multi"]');
+  await page.fill('#mL', '1200'); await page.fill('#mW', '600'); await page.fill('#mN', '2'); await page.click('[data-load="2"]');
+  ok(await page.isHidden('#abManual'), 'no typed price needed');
+  ok((await page.textContent('#mRate')).includes('₹26,965 + 10% (2 covers, MS frame) = ₹29,661.50'), await page.textContent('#mRate'));
+  await page.fill('#mN', '3'); eq(await page.textContent('#abAdd'), 'Add 1 to quote, ₹35,054.50');
+  await page.click('[data-frame="frp"]'); ok(await page.isVisible('#abManual'), 'FRP frame needs a typed price');
+  eq(page.errors.length, 0, page.errors.join());
+  await ctx.close();
+});
+
 await test('UI: fuel station covers in the picker (C250 / D400 only, CIC sizes)', async () => {
   const { ctx, page } = await newPage();
   await page.click('[data-prod="fuel"]');

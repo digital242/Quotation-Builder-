@@ -451,6 +451,7 @@ dialog.pv::backdrop{background:rgba(27,42,74,.55)}
           <div class="fld"><label for="mW">Opening width, mm</label><input id="mW" data-m="w" type="number" min="1" inputmode="numeric"></div>
           <div class="fld"><label for="mN">Number of covers</label><input id="mN" data-m="covers" type="number" min="2" max="20" inputmode="numeric"></div>
         </div>
+        <p class="hint rate-hint" id="mRate"></p>
        </div>
        <div id="channelWrap" hidden>
         <span class="field-label" id="lblGrate">Type</span>
@@ -1033,8 +1034,21 @@ function customQtyBasis(it){ // m² per piece for a grating, metres per piece fo
   if(k==='angle'){ const l=+it.l; return l>0 ? l/1000 : null; }
   return null;
 }
+/* Multi-cover manhole covers with MS frame are priced from the solid top MRP for the same frame opening
+   and load: 2 covers +10% (MS frame), more than 2 covers +30%. Other frames or sizes take a typed price. */
+const MULTI_UPLIFT={two:10,more:30};
+function multiBase(it){
+  const l=+it.l, w=+it.w, i=customLoadIdx(it); if(!(l>0&&w>0) || i===null) return null;
+  for(const sh of ['Rectangular','Square']) for(const row of (DATA.solid.shapes[sh]||[])){
+    if(isTwin(row)) continue;
+    const d=row[2]; if((d[0]===l&&d[1]===w)||(d[0]===w&&d[1]===l)) return row[3][i]!=null ? {row,price:row[3][i]} : null;
+  }
+  return null;
+}
+function multiUplift(it){ return normFrame('custom',it.frame)!=='ms' ? null : coversOf(it)===2 ? MULTI_UPLIFT.two : MULTI_UPLIFT.more; }
 function customListPrice(it){
   if(it.prod!=='custom') return null;
+  if(kindOf(it)==='multi'){ const b=multiBase(it), u=multiUplift(it); return b && u!==null ? round2(b.price*(100+u)/100) : null; }
   if(kindOf(it)==='channel'){ const row=channelRow(it); const i=customLoadIdx(it); return row && i!==null && row[i]!=null ? row[i] : null; }
   const r=customRate(it), q=customQtyBasis(it);
   if(!(r && q)) return null;
@@ -1385,11 +1399,12 @@ function parseLine(raw){
   if(multi){
     const d2 = dims3 ? null : size && size.a ? [size.a,size.b] : null;
     if(!d2) return fail('Add the multi-cover size as length x width in mm, for example 1800x900.');
-    if(!(price>0)) return fail('Add the multi-cover price per piece, for example price 60000.');
     if(load===null) return fail('Add the load class: 2.5 T, 5 T, B125, C250, D400 or E600.');
     if(covers!==null && (covers<2||covers>20)) return fail('A multi-cover manhole cover has 2 to 20 covers.');
     const item={prod,kind:'multi',name:'FRP/GRP Multiple Manhole Cover',l:d2[0],w:d2[1],covers:covers||2,frame:frame||'ms',load,price,qty,disc};
-    return {ok:true,text,item,price,amount:price*qty};
+    const up=unitPrice(item);
+    if(up===null) return fail('Add the multi-cover price per piece, for example price 60000.');
+    return {ok:true,text,item,price:up,amount:up*qty};
   }
   if(ck==='channel'){
     if(!dims3) return fail('Add the drain channel size as width x height x length in mm, for example 326x300x1000.');
@@ -1511,7 +1526,7 @@ function checkLine(raw){
     : /(?<![\d.])\d{3,4}(?![\d.])/.test(s.replace(/\b(?:qty|qnty|qnt|quantity|nos?|pcs)\b\.?\s*[:=\-]?\s*\d+/g,' ').replace(/\d+\s*(?:nos|pcs|pieces|units)\b/g,' ').replace(/(?:\bprice|\brate|\brs\.?|₹|\binr|@)\s*[:=]?\s*[\d,]+/g,' ').replace(/\b[bcde]\s*-?\s*\d{3}\b/g,' '));
   const r=parseLine(text);
   // a typed price is needed for custom items and for frames without a list price
-  const needPrice = prod==='custom' ? (r.ok ? isManual(r.item) : !(grating||angle||ck==='channel') || /Add the price per piece/.test(r.error))
+  const needPrice = prod==='custom' ? (r.ok ? isManual(r.item) : !(grating||angle||ck==='channel'||multi) || /price per piece/.test(r.error))
     : (r.ok && isManual(r.item)) || (!r.ok && /no list price/.test(r.error));
   const nameKey = ck || prod;
   const fullName = !!(nameKey && FULL_NAME[nameKey][0].test(s));
@@ -1875,7 +1890,7 @@ function buildClientDataWorkbook(ExcelJS,rows){
 }
 
 return {CLIENT_DATA_HEAD,clientDataRows,parseCsv,csvLine,mergeClientRows,buildClientDataWorkbook,LOADS,DATA,FLAGS,PRODUCTS,SHAPES,LOAD_CODE,LOAD_PRINT,PRINT_NAME,GROUP_TITLE,GROUP_NOTE,NOTE_MHC,NOTE_GRATING,GULLY_OTO,DEFAULT_FIELDS,CUSTOMER_KEYS,COLW,NUMFMT,
-  netPrice,findRow,checkLine,enquiryLines,isCic,FUEL_INFO,isMulti,kindOf,isChamber,thickOf,rateHeight,DRAIN_CHANNEL,channelKey,channelRow,GRATING_EXTRA_PC,regionOfCity,gratingExtra,groupTitleTail,groupNote,customRate,customQtyBasis,customListPrice,GRATING_RATE_M2,GRATING_CHQ_RATE_M2,L_ANGLE_RATE_M,L_ANGLE_SECTIONS,angleSecText,teethInfo,teethOf,CLOSE_TEETH_SIZES,grateText,CUSTOM_KINDS,CUSTOM_DEFAULT_NAME,coversOf,allowedFrames,serialOf,lcFirst,isLoadIdx,isTwin,isTwinItem,priceOf,normFrame,listFrame,isManual,listPrice,unitPrice,pctOf,depthOf,itemDisc,itemSizeText,itemLoadText,itemLoadPrint,finishText,customName,groupTitle,FRAME_LABEL,usdRateOf,fmtUS,usd2,pctLabel,modeOf,linePrice,money,moneyShort,NUMFMT_USD,itemKey,groupKey,flagFor,gullyOTO,inchesOf,sizeText,loadText,loadPrint,productLabel,specText,
+  netPrice,findRow,checkLine,enquiryLines,isCic,FUEL_INFO,isMulti,multiBase,multiUplift,MULTI_UPLIFT,kindOf,isChamber,thickOf,rateHeight,DRAIN_CHANNEL,channelKey,channelRow,GRATING_EXTRA_PC,regionOfCity,gratingExtra,groupTitleTail,groupNote,customRate,customQtyBasis,customListPrice,GRATING_RATE_M2,GRATING_CHQ_RATE_M2,L_ANGLE_RATE_M,L_ANGLE_SECTIONS,angleSecText,teethInfo,teethOf,CLOSE_TEETH_SIZES,grateText,CUSTOM_KINDS,CUSTOM_DEFAULT_NAME,coversOf,allowedFrames,serialOf,lcFirst,isLoadIdx,isTwin,isTwinItem,priceOf,normFrame,listFrame,isManual,listPrice,unitPrice,pctOf,depthOf,itemDisc,itemSizeText,itemLoadText,itemLoadPrint,finishText,customName,groupTitle,FRAME_LABEL,usdRateOf,fmtUS,usd2,pctLabel,modeOf,linePrice,money,moneyShort,NUMFMT_USD,itemKey,groupKey,flagFor,gullyOTO,inchesOf,sizeText,loadText,loadPrint,productLabel,specText,
   defaultWording,wordingOf,TRANSPORT_MODES,PAY_PRESETS,transportText,paySlabsOf,slabTotal,slabProblem,paymentLines,fmtIN,rupees,rupees2,round2,ddmmyyyy,fyOf,pad3,todayISO,refNo,parseLine,describeParsed,matchSize,
   totals,autoSubject,introText,buildModel,whatsappText,wrapLines,rowHeightFor,buildWorkbook,stripB64,
   logos:{tp:LOGO_TP,td:LOGO_TD}};
@@ -2310,6 +2325,12 @@ function renderPicker(){
     }
     if(P.ck==='angle') $('#aRate').innerHTML=rateHint(pItem(),'m');
     if(P.ck==='grating'){ const ti=T.teethInfo(pItem()), te=$('#gTeeth'); te.className='teeth '+ti.teeth; te.innerHTML='<b>'+(ti.teeth==='close'?'Close teeth':'Open teeth')+'</b> '+esc(ti.reason); }
+    if(P.ck==='multi'){
+      const mi=pItem(), b=T.multiBase(mi), u=T.multiUplift(mi);
+      $('#mRate').innerHTML = !b ? 'This opening size and load class are not in the solid top price list. Enter the price per piece below.'
+        : u===null ? 'With an MS frame this is priced from the list (2 covers +10%, more than 2 covers +30%). For this frame, enter the price per piece below.'
+        : 'Price list: solid top '+esc(b.row[2].join(' × '))+' mm, '+esc(T.LOAD_CODE[mi.load])+' = '+esc(T.rupees(b.price))+' + '+u+'% ('+(T.coversOf(mi)===2?'2 covers, MS frame':T.coversOf(mi)+' covers')+') = <b>'+esc(T.rupees(T.customListPrice(mi)))+'</b> per piece';
+    }
     if(P.ck==='channel'){
       const t=P.ch.grate==='slit'?'slit':P.ch.grate==='without'?null:'grate', ci=pItem();
       $('#chSizes').innerHTML = t ? Object.keys(T.DRAIN_CHANNEL[t]).map(k=>{ const [w,h,l]=k.split('x'); return '<button type="button" data-chsize="'+k+'" aria-pressed="'+(T.channelKey(ci)===k)+'">'+w+' W × '+h+' Ht × '+l+' Lt</button>'; }).join('') : '';
@@ -2332,7 +2353,7 @@ function renderPicker(){
   const lf = isC ? null : P.prod==='gully' ? null : T.listFrame({prod:P.prod,id:P.id});
   $('#frameSeg').innerHTML=frameOptions().map(fr=>'<button type="button" data-frame="'+fr+'" aria-pressed="'+(fr===P.frame)+'">'+esc(T.FRAME_LABEL[fr])+(lf&&fr===lf?' <span class="cnt">list price</span>':'')+'</button>').join('');
   const manual=T.isManual(pItem());
-  $('#frameHint').textContent = isC ? (P.ck==='multi'?'Multi-cover manhole covers are priced by hand. MS frame is standard. Enter the price per piece below.':P.ck==='grating'?(manual?(P.frame!=='none'?'The price list rates per m² are for gratings without frame. With a frame, enter a rate per m² or a price per piece below.'
+  $('#frameHint').textContent = isC ? (P.ck==='multi'?'MS frame is standard: priced from the solid top list, 2 covers +10%, more than 2 covers +30%.':P.ck==='grating'?(manual?(P.frame!=='none'?'The price list rates per m² are for gratings without frame. With a frame, enter a rate per m² or a price per piece below.'
       :(+P.g.h>0?'The price list goes up to 40 mm height. Enter a rate per m² or a price per piece below.':'Enter the height (up to 30 mm uses the 30 mm rate, up to 40 mm the 40 mm rate).')):'Priced from the price list per m² (without frame). A frame needs a typed price.'):'Chambers are priced by hand. Enter the price per piece below.')
     : P.prod==='gully' ? 'Both water gully options are in the price list.'
     : manual ? 'The price list has no '+T.lcFirst(T.FRAME_LABEL[P.frame])+' price for this cover. Enter the price per piece below.'
