@@ -624,14 +624,16 @@ await test('net rate or MRP view: same grand total; MRP shows list prices and a 
   let hdr = null; ws.eachRow(row => row.eachCell(c => { if (c.value === 'PRICE /PC (RS)') hdr = c; })); ok(hdr, 'MRP header');
   ok(TD.whatsappText(M).includes('(less 10%)'), 'WhatsApp shows the discount on MRP lines');
 });
-await test('multi-cover with MS frame: solid top MRP + 10% for 2 covers, + 30% for more than 2', () => {
+await test('multi-cover: solid top MRP + 10% for 2 covers (MS frame), + 30% for more than 2', () => {
   const p = l => { const r = TD.parseLine(l); ok(r.ok, l + ': ' + r.error); return r; };
   eq(p('multiple manhole cover 1200x600 b125 qty 2').price, 29661.5, '26965 (1200x600 B125) + 10%');
   eq(p('multi cover 1200x600 3 covers b125 qty 1').price, 35054.5, '26965 + 30%');
   eq(p('multiple cover 1200x1200 4 covers d400 qty 1').price, 142727, '109790 + 30%');
   eq(p('multiple cover 600x1200 b125 qty 1').price, 29661.5, 'either orientation');
   eq(p('multiple cover 900x900 c250 qty 1').price, 41613, '37830 + 10%');
-  ok(/price per piece/.test(TD.parseLine('multiple cover 1200x600 b125 frp frame qty 1').error), 'FRP frame: typed price');
+  ok(/price per piece/.test(TD.parseLine('multiple cover 1200x600 b125 frp frame qty 1').error), '2 covers with FRP frame: typed price');
+  eq(p('multiple cover 1200x600 3 covers b125 frp frame qty 1').price, 35054.5, 'more than 2 covers: +30% with FRP frame too');
+  ok(/price per piece/.test(TD.parseLine('multiple cover 1200x600 3 covers b125 without frame qty 1').error), 'without frame: typed price');
   eq(p('multiple cover 1200x600 b125 frp frame price 30000 qty 1').price, 30000);
   ok(/price per piece/.test(TD.parseLine('multiple cover 1800x900 b125 qty 1').error), 'size not in the list: typed price');
   eq(p('multiple cover 1200x600 b125 price 1 qty 1').price, 29661.5, 'a typed price never replaces the list price');

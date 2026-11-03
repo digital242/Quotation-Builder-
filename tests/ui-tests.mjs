@@ -611,7 +611,8 @@ await test('UI: multi-cover priced from the solid top list (+10% for 2 covers, +
   ok(await page.isHidden('#abManual'), 'no typed price needed');
   ok((await page.textContent('#mRate')).includes('₹26,965 + 10% (2 covers, MS frame) = ₹29,661.50'), await page.textContent('#mRate'));
   await page.fill('#mN', '3'); eq(await page.textContent('#abAdd'), 'Add 1 to quote, ₹35,054.50');
-  await page.click('[data-frame="frp"]'); ok(await page.isVisible('#abManual'), 'FRP frame needs a typed price');
+  await page.click('[data-frame="frp"]'); eq(await page.textContent('#abAdd'), 'Add 1 to quote, ₹35,054.50', '3 covers: +30% with FRP frame too');
+  await page.fill('#mN', '2'); ok(await page.isVisible('#abManual'), '2 covers with FRP frame need a typed price');
   eq(page.errors.length, 0, page.errors.join());
   await ctx.close();
 });

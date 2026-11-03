@@ -1034,8 +1034,8 @@ function customQtyBasis(it){ // m² per piece for a grating, metres per piece fo
   if(k==='angle'){ const l=+it.l; return l>0 ? l/1000 : null; }
   return null;
 }
-/* Multi-cover manhole covers with MS frame are priced from the solid top MRP for the same frame opening
-   and load: 2 covers +10% (MS frame), more than 2 covers +30%. Other frames or sizes take a typed price. */
+/* Multi-cover manhole covers are priced from the solid top MRP for the same frame opening and load:
+   2 covers with MS frame +10%; more than 2 covers +30% (MS or FRP frame). Others take a typed price. */
 const MULTI_UPLIFT={two:10,more:30};
 function multiBase(it){
   const l=+it.l, w=+it.w, i=customLoadIdx(it); if(!(l>0&&w>0) || i===null) return null;
@@ -1045,7 +1045,11 @@ function multiBase(it){
   }
   return null;
 }
-function multiUplift(it){ return normFrame('custom',it.frame)!=='ms' ? null : coversOf(it)===2 ? MULTI_UPLIFT.two : MULTI_UPLIFT.more; }
+function multiUplift(it){
+  const fr=normFrame('custom',it.frame);
+  if(coversOf(it)===2) return fr==='ms' ? MULTI_UPLIFT.two : null; // 2 covers: +10% for the MS frame
+  return fr==='none' ? null : MULTI_UPLIFT.more;                   // more than 2 covers: +30% (MS or FRP frame)
+}
 function customListPrice(it){
   if(it.prod!=='custom') return null;
   if(kindOf(it)==='multi'){ const b=multiBase(it), u=multiUplift(it); return b && u!==null ? round2(b.price*(100+u)/100) : null; }
@@ -2328,7 +2332,7 @@ function renderPicker(){
     if(P.ck==='multi'){
       const mi=pItem(), b=T.multiBase(mi), u=T.multiUplift(mi);
       $('#mRate').innerHTML = !b ? 'This opening size and load class are not in the solid top price list. Enter the price per piece below.'
-        : u===null ? 'With an MS frame this is priced from the list (2 covers +10%, more than 2 covers +30%). For this frame, enter the price per piece below.'
+        : u===null ? (T.coversOf(mi)===2 ? '2 covers are priced from the list with an MS frame (+10%).' : 'Without frame there is no list price.')+' For this choice, enter the price per piece below.'
         : 'Price list: solid top '+esc(b.row[2].join(' × '))+' mm, '+esc(T.LOAD_CODE[mi.load])+' = '+esc(T.rupees(b.price))+' + '+u+'% ('+(T.coversOf(mi)===2?'2 covers, MS frame':T.coversOf(mi)+' covers')+') = <b>'+esc(T.rupees(T.customListPrice(mi)))+'</b> per piece';
     }
     if(P.ck==='channel'){
@@ -2353,7 +2357,7 @@ function renderPicker(){
   const lf = isC ? null : P.prod==='gully' ? null : T.listFrame({prod:P.prod,id:P.id});
   $('#frameSeg').innerHTML=frameOptions().map(fr=>'<button type="button" data-frame="'+fr+'" aria-pressed="'+(fr===P.frame)+'">'+esc(T.FRAME_LABEL[fr])+(lf&&fr===lf?' <span class="cnt">list price</span>':'')+'</button>').join('');
   const manual=T.isManual(pItem());
-  $('#frameHint').textContent = isC ? (P.ck==='multi'?'MS frame is standard: priced from the solid top list, 2 covers +10%, more than 2 covers +30%.':P.ck==='grating'?(manual?(P.frame!=='none'?'The price list rates per m² are for gratings without frame. With a frame, enter a rate per m² or a price per piece below.'
+  $('#frameHint').textContent = isC ? (P.ck==='multi'?'Priced from the solid top list: 2 covers with MS frame +10%, more than 2 covers +30%.':P.ck==='grating'?(manual?(P.frame!=='none'?'The price list rates per m² are for gratings without frame. With a frame, enter a rate per m² or a price per piece below.'
       :(+P.g.h>0?'The price list goes up to 40 mm height. Enter a rate per m² or a price per piece below.':'Enter the height (up to 30 mm uses the 30 mm rate, up to 40 mm the 40 mm rate).')):'Priced from the price list per m² (without frame). A frame needs a typed price.'):'Chambers are priced by hand. Enter the price per piece below.')
     : P.prod==='gully' ? 'Both water gully options are in the price list.'
     : manual ? 'The price list has no '+T.lcFirst(T.FRAME_LABEL[P.frame])+' price for this cover. Enter the price per piece below.'
